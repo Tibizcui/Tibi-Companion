@@ -140,7 +140,13 @@ app.whenReady().then(() => {
   registerIpc();
   createWindow();
   createTray();
-  startWatchers();
+  // Attendre que la page ait fini de charger avant de démarrer les watchers :
+  // readOnce() pousse immédiatement le dernier export connu au renderer, or
+  // si ce push arrive avant que app.js ait enregistré son écouteur
+  // onExportUpdate, le message est perdu pour de bon (pas de mise en file
+  // d'attente côté Electron) et le dashboard reste vide jusqu'au prochain
+  // vrai /reload en jeu.
+  mainWindow.webContents.once("did-finish-load", startWatchers);
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
