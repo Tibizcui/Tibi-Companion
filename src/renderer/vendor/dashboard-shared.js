@@ -1,5 +1,5 @@
 /* ============================================================================
-   ── FICHIER VENDU (copie synchronisée) ──
+   -- FICHIER VENDU (copie synchronisée) --
    Source de vérité : dépôt "Tibiscui.fr" / dashboard-shared.js.
    Ne PAS modifier la logique de décodage ici sans reporter le changement dans
    les 3 côtés : Stats/Libs/LZW.lua + Stats/Export.lua (dépôt TibiSuite -
@@ -18,7 +18,7 @@
    Format attendu (produit par l'addon Stats, cf. TibiSuite - Unifie / Stats) :
      texte imprimable = Base64( LZW( JSON({schema, generatedAt, char, checksum, data}) ) )
 
-   ── NE PAS TOUCHER sans mettre a jour Stats/Libs/LZW.lua en parallele ──
+   -- NE PAS TOUCHER sans mettre a jour Stats/Libs/LZW.lua en parallele --
    Le decodeur LZW ci-dessous est un miroir BIT A BIT de Stats/Libs/LZW.lua :
    dictionnaire fige a 4096 entrees (codes 12 bits), memes formules de pack/
    unpack. Idem pour djb2 (Export.lua). Toute evolution de ces fichiers Lua

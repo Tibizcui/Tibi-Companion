@@ -1,6 +1,6 @@
 "use strict";
 /* ============================================================================
-   app.js — colle le watcher (process main) au moteur TibiDashboard (vendor)
+   app.js - colle le watcher (process main) au moteur TibiDashboard (vendor)
 ============================================================================ */
 
 (function () {
@@ -78,9 +78,14 @@
       btn.textContent = "Ajouter";
       btn.addEventListener("click", async function () {
         await window.companionAPI.addAccount({ wowRoot, account: acc.account, statsPath: acc.statsPath });
-        onboarding.hidden = true;
-        dashboardArea.hidden = false;
+        // Peuple #dash-result AVANT de démasquer #dashboard-area : sur cette
+        // machine, rendre un conteneur visible puis y injecter du contenu
+        // juste après (au lieu d'avant) fait rater la peinture du fond du
+        // conteneur, qui reste transparent (le bureau Windows se voit à
+        // travers). Toujours peupler d'abord.
         ensureDashApp();
+        onboarding.hidden = true;
+        dashboardArea.classList.remove("is-inactive");
       });
       row.appendChild(meta);
       row.appendChild(btn);
@@ -113,7 +118,7 @@
   }
 
   async function scanDefault() {
-    setStatus("", "Détection en cours…");
+    setStatus("", "Détection en cours...");
     const found = await window.companionAPI.autoDetect();
     const byRoot = new Map();
     found.forEach(function (f) {
@@ -141,13 +146,14 @@
     state.accounts.forEach(function (a) { accountLabels.set(a.id, a.label || a.account); });
 
     if (state.accounts.length) {
-      onboarding.hidden = true;
-      dashboardArea.hidden = false;
+      // Meme raison que plus haut : peupler avant de demasquer.
       ensureDashApp();
-      setStatus("", "En attente d'un /reload en jeu…");
+      onboarding.hidden = true;
+      dashboardArea.classList.remove("is-inactive");
+      setStatus("", "En attente d'un /reload en jeu...");
     } else {
       onboarding.hidden = false;
-      dashboardArea.hidden = true;
+      dashboardArea.classList.add("is-inactive");
       setStatus("warn", "Aucun compte suivi pour le moment.");
     }
   }

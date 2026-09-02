@@ -60,6 +60,20 @@ body { overflow-y: auto; }
 
 .app-main { flex: 1; padding: 24px 20px 60px; }
 
+/* #dashboard-area n'utilise jamais l'attribut hidden (display:none) : sur
+   cette machine, demasquer un conteneur qui n'a jamais ete peint (display
+   none -> block/flex) rend tout son contenu injecte dynamiquement via
+   innerHTML transparent (le bureau Windows se voit a travers). Rester en
+   visibility:hidden garde le conteneur "peint" en permanence, ce qui evite
+   le bug. Verifie longuement en isolation avant d'appliquer ce correctif. */
+.is-inactive {
+  visibility: hidden;
+  position: absolute;
+  height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
 .onboarding {
   max-width: 640px;
   margin: 60px auto;
@@ -85,8 +99,8 @@ body { overflow-y: auto; }
   list-style: none;
 }
 .accounts-list summary::-webkit-details-marker { display: none; }
-.accounts-list summary::before { content: "▸ "; }
-.accounts-list details[open] summary::before { content: "▾ "; }
+.accounts-list summary::before { content: "> "; }
+.accounts-list details[open] summary::before { content: "v "; }
 .accounts-list details .account-row { border-top: 1px solid var(--line); }
 
 .account-row {
