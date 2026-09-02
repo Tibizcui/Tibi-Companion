@@ -1,0 +1,113 @@
+/* Chrome propre à l'app (au-dessus de vendor/site-style.css). Palette
+   alignée sur TibiSuite - Unifié : accent rouge de marque #C41F3B. */
+
+:root {
+  --accent: #c41f3b;
+  --accent-soft: rgba(196, 31, 59, 0.18);
+}
+
+body { overflow-y: auto; }
+
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 20px;
+  background: var(--graphite-2);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  -webkit-app-region: drag;
+}
+
+.app-topbar button, .app-topbar select { -webkit-app-region: no-drag; }
+
+.app-brand {
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.app-brand b { color: var(--accent); }
+
+.app-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #5c6270;
+  flex: none;
+}
+.status-dot.ok { background: #35c46a; }
+.status-dot.warn { background: #e4b64a; }
+.status-dot.err { background: var(--accent); }
+
+.app-topbar .btn.small {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+
+.app-main { flex: 1; padding: 24px 20px 60px; }
+
+.onboarding {
+  max-width: 640px;
+  margin: 60px auto;
+  text-align: center;
+}
+.onboarding h1 { margin-bottom: 8px; }
+.onboarding p { color: var(--muted); margin-bottom: 24px; }
+.onboarding .accounts-list {
+  text-align: left;
+  margin: 20px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.accounts-list details {
+  border-top: 1px solid var(--line);
+}
+.accounts-list summary {
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  list-style: none;
+}
+.accounts-list summary::-webkit-details-marker { display: none; }
+.accounts-list summary::before { content: "▸ "; }
+.accounts-list details[open] summary::before { content: "▾ "; }
+.accounts-list details .account-row { border-top: 1px solid var(--line); }
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.account-row:last-child { border-bottom: none; }
+.account-row .meta { flex: 1; }
+.account-row .meta small { display: block; color: var(--muted); }
+
+.manual-paste-toggle {
+  margin: 10px 0 20px;
+  font-size: 13px;
+  color: var(--muted);
+  cursor: pointer;
+  text-decoration: underline;
+  background: none; border: none;
+}
+
+.manual-paste { display: none; margin-bottom: 24px; }
+.manual-paste.open { display: block; }

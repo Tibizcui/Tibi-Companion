@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data:;" />
+  <title>Tibi Companion</title>
+  <link rel="stylesheet" href="vendor/site-style.css" />
+  <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <div class="app-topbar">
+      <span class="app-brand">Tibi<b>Companion</b></span>
+      <button id="btn-add-account" class="btn ghost small" type="button">+ Compte WoW</button>
+      <label class="app-status" style="margin-left:0;cursor:pointer;">
+        <input type="checkbox" id="chk-autostart" />
+        Démarrer avec Windows/macOS
+      </label>
+      <div class="app-status">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Initialisation…</span>
+      </div>
+    </div>
+
+    <main class="app-main">
+      <div id="onboarding" class="onboarding" hidden>
+        <h1>Bienvenue sur Tibi Companion</h1>
+        <p>
+          Connecte ton dossier World of Warcraft pour que ton dashboard se
+          mette à jour automatiquement à chaque <code>/reload</code> ou
+          déconnexion, sans copier-coller de code. Rien n'est envoyé à un
+          serveur : tout reste sur cet appareil.
+        </p>
+        <div id="onboarding-detected" class="accounts-list" hidden></div>
+        <button id="btn-scan-default" class="btn ghost" type="button">Détecter automatiquement</button>
+        <button id="btn-pick-folder" class="btn primary" type="button">Choisir mon dossier World of Warcraft</button>
+      </div>
+
+      <div id="dashboard-area" hidden>
+        <button id="manual-toggle" class="manual-paste-toggle" type="button">
+          Ajouter un code d'export manuellement (alt, autre PC…)
+        </button>
+        <div id="manual-paste" class="manual-paste dash-paste">
+          <label for="dash-input">Code d'export</label>
+          <textarea id="dash-input" placeholder="Colle ton code d'export ici..." spellcheck="false"></textarea>
+          <div class="dash-paste-actions">
+            <button id="dash-go" class="btn primary" type="button">Ajouter au dashboard</button>
+          </div>
+          <div id="dash-form-error"></div>
+        </div>
+
+        <div id="dash-result"></div>
+      </div>
+    </main>
+  </div>
+
+  <script src="vendor/dashboard-shared.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

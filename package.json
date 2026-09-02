@@ -1,0 +1,50 @@
+{
+  "name": "tibi-companion",
+  "productName": "Tibi Companion",
+  "version": "0.1.0",
+  "description": "Compagnon PC de TibiSuite : synchronise et affiche automatiquement ton dashboard de statistiques (module Stats) sans copier-coller de code.",
+  "main": "src/main/main.js",
+  "author": "Tibiscui",
+  "license": "MIT",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tibizcui/Tibi-Companion.git"
+  },
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist": "electron-builder --win --mac"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "fr.tibiscui.companion",
+    "productName": "Tibi Companion",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis",
+      "signtoolOptions": {
+        "publisherName": "Tibiscui",
+        "rfc3161TimeStampServer": "http://timestamp.digicert.com"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    }
+  }
+}
