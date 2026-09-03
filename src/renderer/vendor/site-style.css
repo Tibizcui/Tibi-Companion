@@ -543,7 +543,7 @@ a{color:inherit}
 .lang-btn.active{color:#120c02;background:linear-gradient(135deg,var(--gold-soft),var(--gold-2))}
 .lang-btn:focus-visible{outline:3px solid var(--gold-glow);outline-offset:2px}
 
-/* =========================== v5.0 - Modèle unifié (hero badge + install) =========== */
+/* =========================== v5.0 — Modèle unifié (hero badge + install) =========== */
 .hero-badge{display:inline-flex;align-items:center;gap:.5em;margin:14px 0 0;
   padding:6px 14px;border-radius:999px;font-size:.78rem;font-weight:700;letter-spacing:.02em;
   color:#e9e4ff;background:rgba(148,128,255,.12);border:1px solid rgba(148,128,255,.34)}
@@ -598,7 +598,7 @@ a{color:inherit}
 .release-banner-link:focus-visible{outline:3px solid var(--gold-glow);outline-offset:2px}
 @media (max-width:960px){.release-banner{margin-top:72px}}
 
-/* =========================== v5.0 - Mode Standalone ======================= */
+/* =========================== v5.0 — Mode Standalone ======================= */
 .install-note.standalone{margin-top:22px}
 .install-note.standalone::before{
   background:radial-gradient(600px 200px at 88% 0%,rgba(90,220,170,.12),transparent 70%)}
@@ -641,7 +641,7 @@ a{color:inherit}
 .faq-answer a{color:var(--gold-soft);text-decoration:underline;text-underline-offset:2px}
 .faq-answer a:hover{color:var(--gold)}
 
-/* =========================== Footer - liens légaux ===================== */
+/* =========================== Footer — liens légaux ===================== */
 .footer-links{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;
   margin-bottom:18px;font-size:.82rem}
 .footer-links a{color:var(--muted);text-decoration:none;transition:color .2s}
@@ -777,6 +777,7 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 /* -- Colonnes (metiers + historique) -- */
 .bi-columns{display:grid;grid-template-columns:1fr 1.6fr;gap:26px;align-items:start}
 .bi-col{min-width:0}
+.bi-prof-filter{margin:0 0 12px}
 .prof-grid{display:grid;gap:12px}
 .prof-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px}
 .prof-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}

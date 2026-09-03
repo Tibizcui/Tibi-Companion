@@ -151,6 +151,29 @@
   };
   var MONTHS_FR = ["janv.", "fevr.", "mars", "avr.", "mai", "juin", "juil.", "aout", "sept.", "oct.", "nov.", "dec."];
 
+  // Miroir de SkillTracker/Constants.lua : ST.EXP_NAME_INDEX. Sert UNIQUEMENT
+  // a trier/regrouper les extensions du filtre Metiers dans le bon ordre
+  // chronologique - les cles doivent matcher EXACTEMENT les noms que le jeu
+  // stocke dans prof.lines[id].exp (accents compris, FR et EN).
+  var EXP_NAME_INDEX = {
+    "Classic": 0, "Classique": 0, "Vanilla": 0,
+    "Outland": 1, "Outreterre": 1,
+    "Northrend": 2, "Norfendre": 2,
+    "Cataclysm": 3, "Cataclysme": 3,
+    "Pandaria": 4, "Pandarie": 4,
+    "Draenor": 5,
+    "Legion": 6, "Légion": 6,
+    "Zandalar": 7, "Kul Tiras": 7, "Kul Tiran": 7, "Battle for Azeroth": 7,
+    "Shadowlands": 8, "Ombreterre": 8,
+    "Dragon Isles": 9, "Îles aux Dragons": 9, "Dragonflight": 9,
+    "Khaz Algar": 10, "The War Within": 10,
+    "Midnight": 11,
+  };
+  function expIndexOf(name) {
+    var idx = EXP_NAME_INDEX[name];
+    return idx == null ? 99 : idx;
+  }
+
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
@@ -510,27 +533,75 @@
     );
   }
 
-  function renderProfessions(professions) {
-    if (!professions || typeof professions !== "object" || Object.keys(professions).length === 0) {
-      return "";
-    }
+  // Extensions distinctes trouvees dans prof.lines[id].exp, sur TOUS les
+  // metiers du profil - sert a peupler le filtre. prof.lines contient deja
+  // le detail par palier/extension (Export.lua exporte la table complete,
+  // pas seulement le palier courant), donc rien a changer cote addon.
+  function collectProfessionExpansions(professions) {
+    var set = {};
+    Object.keys(professions || {}).forEach(function (key) {
+      var prof = professions[key];
+      if (!prof || !prof.lines) return;
+      Object.keys(prof.lines).forEach(function (id) {
+        var ln = prof.lines[id];
+        if (ln && ln.exp) set[ln.exp] = true;
+      });
+    });
+    var names = Object.keys(set);
+    names.sort(function (a, b) { return expIndexOf(a) - expIndexOf(b); });
+    return names;
+  }
+
+  function professionFilterHtml(expansions, active) {
+    active = active || "overall";
+    var opts = [{ key: "overall", label: "Total" }].concat(
+      expansions.map(function (e) { return { key: e, label: e }; })
+    );
+    return (
+      '<div class="filter-buttons bi-prof-filter" role="group" aria-label="Extension (metiers)">' +
+      opts.map(function (o) {
+        var isActive = active === o.key;
+        return '<button type="button" class="filter-btn' + (isActive ? " active" : "") + '" data-action="prof-filter" data-value="' + esc(o.key) + '" aria-pressed="' + isActive + '">' + esc(o.label) + "</button>";
+      }).join("") + "</div>"
+    );
+  }
+
+  // filterExp absent/"overall" -> prof.base (total agrege toutes extensions,
+  // comportement d'origine). Une extension precise -> somme des lignes de
+  // prof.lines dont le .exp correspond ; un metier absent de cette extension
+  // pour ce personnage est simplement omis (pas de faux "0/0").
+  function renderProfessions(professions, filterExp) {
     var cards = [];
-    Object.keys(professions).forEach(function (key) {
+    Object.keys(professions || {}).forEach(function (key) {
       var prof = professions[key];
       if (!prof || !prof.name) return;
-      var base = prof.base || {};
-      var pct = base.max ? Math.min(100, Math.round((base.cur / base.max) * 100)) : null;
+      var cur, max;
+      if (!filterExp || filterExp === "overall") {
+        var base = prof.base || {};
+        cur = base.cur; max = base.max;
+      } else {
+        cur = 0; max = 0;
+        var found = false;
+        Object.keys(prof.lines || {}).forEach(function (id) {
+          var ln = prof.lines[id];
+          if (ln && ln.exp === filterExp) { cur += ln.cur || 0; max += ln.max || 0; found = true; }
+        });
+        if (!found) return;
+      }
+      var pct = max ? Math.min(100, Math.round((cur / max) * 100)) : null;
       cards.push(
         '<div class="prof-card">' +
           '<div class="prof-head"><span class="prof-name">' + esc(prof.name) + "</span>" +
           (pct != null ? '<span class="prof-pct">' + pct + "%</span>" : "") + "</div>" +
           (pct != null
-            ? '<div class="prof-bar"><span style="width:' + pct + '%"></span></div><div class="prof-nums">' + fmtNum(base.cur) + " / " + fmtNum(base.max) + "</div>"
+            ? '<div class="prof-bar"><span style="width:' + pct + '%"></span></div><div class="prof-nums">' + fmtNum(cur) + " / " + fmtNum(max) + "</div>"
             : '<div class="dash-note" style="margin-top:6px">Pas de progression suivie.</div>') +
         "</div>"
       );
     });
-    if (cards.length === 0) return "";
+    if (cards.length === 0) {
+      return '<p class="dash-empty">Aucun metier suivi sur cette extension pour ce personnage.</p>';
+    }
     return '<div class="prof-grid">' + cards.join("") + "</div>";
   }
 
@@ -632,6 +703,7 @@
       range: "30",
       metric: "quests",
       sort: { key: "date", dir: "desc" },
+      profFilter: "overall",
     };
     if (state.profiles.length) state.activeId = state.profiles[0].id;
 
@@ -705,8 +777,16 @@
       html += period;
       html += kpis;
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
+      var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
+      var profSection = "";
+      if (hasProfessions) {
+        var profExpansions = collectProfessionExpansions(active.professions);
+        var profFilterBar = profExpansions.length > 1 ? professionFilterHtml(profExpansions, state.profFilter) : "";
+        profSection = '<h3 class="dash-subtitle">Metiers</h3>' + profFilterBar + renderProfessions(active.professions, state.profFilter);
+      }
+
       html += '<div class="bi-columns">';
-      html += '<div class="bi-col">' + (renderProfessions(active.professions) ? '<h3 class="dash-subtitle">Metiers</h3>' + renderProfessions(active.professions) : "") + "</div>";
+      html += '<div class="bi-col">' + profSection + "</div>";
       html += '<div class="bi-col bi-col--wide"><h3 class="dash-subtitle">Historique journalier</h3>' + renderDaysTable(active.days, win, state.sort) + "</div>";
       html += "</div>";
 
@@ -758,6 +838,7 @@
       var action = el.dataset.action;
       if (action === "range") { state.range = el.dataset.value; render(); }
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
+      else if (action === "prof-filter") { state.profFilter = el.dataset.value; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "remove-profile") {
         e.stopPropagation();
@@ -1042,6 +1123,8 @@
     decodeExportCode: decodeExportCode,
     envelopeToProfiles: envelopeToProfiles,
     mergeProfileSources: mergeProfileSources,
+    collectProfessionExpansions: collectProfessionExpansions,
+    renderProfessions: renderProfessions,
     mountGeneric: mountGeneric,
     mountFixed: mountFixed,
     mountFixedMerged: mountFixedMerged,
