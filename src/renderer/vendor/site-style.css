@@ -803,6 +803,10 @@ a{color:inherit}
 .pvp-chips--wrap .pvp-chip{align-items:flex-start}
 .pvp-chip-label{color:var(--muted);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .pvp-chip-value{color:var(--gold-soft);font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
+.pvp-subhead{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin:16px 0 4px}
+.pvp-subhead--divider{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
+.pvp-subtitle{color:var(--gold-soft);font-weight:700;font-size:.85rem}
+.pvp-subvalue{color:var(--muted);font-size:.85rem}
 .pvp-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;border-top:1px solid var(--line)}
 .pvp-row:first-of-type{border-top:none}
 .pvp-bracket-label{color:var(--text);font-weight:700;font-size:.9rem;flex:1}

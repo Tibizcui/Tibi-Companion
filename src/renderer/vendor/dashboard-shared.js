@@ -462,33 +462,70 @@
   var PVP_BRACKET_ORDER = ["2v2", "3v3", "rbg", "shuffle", "blitz"];
   var PVP_BRACKET_LABELS = { "2v2": "Arene 2c2", "3v3": "Arene 3c3", rbg: "BG classe", shuffle: "Melee solo", blitz: "Blitz" };
 
+  function pctOf(wins, total) {
+    if (!total) return 0;
+    return Math.round((wins / total) * 100);
+  }
+
+  function subheadHtml(title, value, extraClass) {
+    return '<div class="pvp-subhead' + (extraClass ? " " + extraClass : "") + '"><span class="pvp-subtitle">' + esc(title) + "</span>"
+      + '<span class="pvp-subvalue">' + esc(value) + "</span></div>";
+  }
+
   function renderPvpCard(char) {
     var pvp = char && char.pvp;
     if (!pvp) return "";
     var rows = PVP_BRACKET_ORDER.map(function (key) {
       var b = pvp.brackets && pvp.brackets[key];
       if (!b) return "";
-      var losses = Math.max(0, (b.seasonPlayed || 0) - (b.seasonWon || 0));
+      var wins = b.seasonWon || 0, losses = Math.max(0, (b.seasonPlayed || 0) - wins);
       return (
         '<div class="pvp-row">' +
           '<span class="pvp-bracket-label">' + esc(PVP_BRACKET_LABELS[key]) + "</span>" +
           '<span class="pvp-bracket-rating">' + esc(b.rating || 0) + " <span class=\"pvp-bracket-best\">(meilleur " + esc(b.seasonBest || b.rating || 0) + ")</span></span>" +
-          '<span class="pvp-bracket-record">' + esc(b.seasonWon || 0) + "V / " + esc(losses) + "D</span>" +
+          '<span class="pvp-bracket-record">' + esc(wins) + "V / " + esc(losses) + "D (" + pctOf(wins, wins + losses) + "%)</span>" +
         "</div>"
       );
     }).join("");
-    if (!rows && pvp.honor == null && pvp.conquest == null && pvp.honorableKills == null && pvp.deaths == null) return "";
+    var hasAnything = rows || pvp.honor != null || pvp.conquest != null || pvp.honorableKills != null
+      || pvp.deathsByPlayers != null || pvp.deathsByEnemyFaction != null || pvp.bgParticipation != null;
+    if (!hasAnything) return "";
+
     var chips = "";
     if (pvp.honorableKills != null) chips += chipHtml("Adversaires tues", fmtNum(pvp.honorableKills));
-    if (pvp.deaths != null) chips += chipHtml("Morts en PVP", fmtNum(pvp.deaths));
+    if (pvp.deathsByPlayers != null) chips += chipHtml("Tue par un joueur", fmtNum(pvp.deathsByPlayers));
+    if (pvp.deathsByEnemyFaction != null) chips += chipHtml("Tue par la faction adverse", fmtNum(pvp.deathsByEnemyFaction));
     if (pvp.honor != null) chips += chipHtml("Honneur", fmtNum(pvp.honor));
     if (pvp.conquest != null) chips += chipHtml("Conquete", fmtNum(pvp.conquest));
+
+    var arena = pvp.arena;
+    var arenaHtml = subheadHtml(
+      "Arene (2c2+3c3+melee solo)",
+      arena ? (fmtNum(arena.played || 0) + " matchs - " + fmtNum(arena.won || 0) + " victoires (" + pctOf(arena.won || 0, arena.played || 0) + "%)") : "-"
+    );
+
+    var bgHtml = subheadHtml(
+      "Champs de bataille",
+      pvp.bgParticipation ? (fmtNum(pvp.bgParticipation) + " participations - " + fmtNum(pvp.bgWinsTotal || 0) + " victoires (" + pctOf(pvp.bgWinsTotal || 0, pvp.bgParticipation) + "%)") : "-",
+      "pvp-subhead--divider"
+    );
+    var bgRows = "";
+    if (pvp.bgWinsByName) {
+      var names = Object.keys(pvp.bgWinsByName).sort(function (a, b) { return pvp.bgWinsByName[b] - pvp.bgWinsByName[a]; }).slice(0, 6);
+      bgRows = names.map(function (n) {
+        return '<div class="pvp-row"><span class="pvp-bracket-label">' + esc(n) + "</span><span class=\"pvp-bracket-record\">" + esc(pvp.bgWinsByName[n]) + " victoires</span></div>";
+      }).join("");
+    }
+    if (!bgRows) bgRows = '<p class="kpi-sub">Aucun champ de bataille joue.</p>';
+
     return (
       '<div class="pvp-card">' +
         '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">PVP</h3>' +
         (chips ? '<div class="pvp-chips">' + chips + "</div>" : "") +
         "</div>" +
+        arenaHtml +
         (rows || '<p class="kpi-sub">Aucune activite PVP classee cette saison.</p>') +
+        bgHtml + bgRows +
       "</div>"
     );
   }
