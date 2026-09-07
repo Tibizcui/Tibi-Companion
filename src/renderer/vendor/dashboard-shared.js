@@ -567,6 +567,23 @@
     return '<div class="stats-detail">' + tableHtml("Detail par gouffre", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
   }
 
+  // Difficulte "Tourment" appliquee a des donjons classiques (haut fait
+  // distinct par donjon/echelon, ex: "Tourment : Couloirs Distordus
+  // (echelon 6)") - different de la tour Torghast/Ombreterre (tuile resume),
+  // malgre le meme mot "Tourment" pour les deux systemes.
+  function renderTorghastDungeonDetail(char) {
+    var types = char && char.torghastByDungeon;
+    var rows = [];
+    if (types) {
+      var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 8);
+      rows = names.map(function (n) {
+        var e = types[n];
+        return [[esc(n)], [esc(e.count || 0), "num"], ['<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestEchelon || 0) + "</span>", "num"]];
+      });
+    }
+    return '<div class="stats-detail">' + tableHtml("Detail par Tourment", [["Nom"], ["Fois", "num"], ["Echelon max", "num"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
+  }
+
   function deltaBadge(cur, prev) {
     if (prev == null) return '<span class="kpi-delta kpi-delta--flat">periode precedente indisponible</span>';
     if (prev === 0 && cur === 0) return '<span class="kpi-delta kpi-delta--flat">stable</span>';
@@ -907,6 +924,7 @@
       html += renderSummaryTiles(active.char);
       html += renderPvpDetail(active.char);
       html += renderDelveDetail(active.char);
+      html += renderTorghastDungeonDetail(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
