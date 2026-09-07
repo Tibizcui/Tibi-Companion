@@ -1,7 +1,5 @@
 /* FICHIER VENDU (copie synchronisee) : source de verite = Tibiscui.fr/style.css.
-   Les classes dash-, bi-, compare-, kpi-, prof- doivent rester en phase
-   avec le moteur de rendu vendu (vendor/dashboard-shared.js). Le reste (nav,
-   hero, footer du site) est mort ici et peut etre ignore/purge un jour. */
+   Ne pas modifier ici sans reporter le changement cote source, et vice versa. */
 /* ========================================================================
    TIBISUITE - style-v2.css
    Redesign premium 2026 · bi-ambiance
@@ -45,7 +43,7 @@
 }
 
 *{box-sizing:border-box}
-html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;overflow-x:hidden}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 
 body{
@@ -96,6 +94,8 @@ a{color:inherit}
   background:rgba(228,182,74,.06)}
 .text-gold{background:linear-gradient(120deg,var(--gold-soft),var(--gold-2));
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.text-violet{background:linear-gradient(120deg,#c9b6ff,#8f6bff);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 
 .section-pad{padding:clamp(72px,10vw,128px) 0}
 .section-head{text-align:center;max-width:720px;margin:0 auto clamp(36px,5vw,56px)}
@@ -144,6 +144,34 @@ a{color:inherit}
 
 .main-nav a[aria-current="page"]{color:var(--gold-soft)}
 .main-nav a[aria-current="page"]:not(.nav-cta)::after{transform:scaleX(1)}
+
+/* Menus deroulants (Modules / Dashboards) : <details>/<summary> natif plutot
+   qu'un menu ARIA fait main - ouverture/fermeture au clavier gratuite, rien
+   a maintenir, comportement accessible garanti par construction. */
+.nav-drop{position:relative}
+.nav-drop>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:6px;
+  color:var(--muted);font-weight:700;font-size:.9rem;padding:9px 4px;transition:color .25s}
+.nav-drop>summary::-webkit-details-marker{display:none}
+.nav-drop>summary:hover,.nav-drop[open]>summary{color:var(--text)}
+.nav-drop .chev{width:10px;height:10px;flex-shrink:0;transition:transform .25s var(--ease)}
+.nav-drop[open] .chev{transform:rotate(180deg)}
+.nav-drop .panel{position:absolute;top:calc(100% + 10px);left:0;min-width:230px;z-index:5;
+  background:var(--graphite-2);border:1px solid var(--line-strong);border-radius:14px;
+  box-shadow:var(--shadow);padding:8px;display:flex;flex-direction:column;gap:2px}
+.nav-drop .panel a{display:flex;flex-direction:column;gap:1px;padding:9px 12px;border-radius:9px;
+  text-decoration:none;color:var(--text);font-size:.86rem;font-weight:700;border:0}
+.nav-drop .panel a::after{display:none!important}
+.nav-drop .panel a:hover{background:rgba(228,182,74,.08)}
+.nav-drop .panel a small{color:var(--muted);font-weight:500;font-size:.76rem}
+
+/* Liens vedettes (RenTracker, Tibi Companion) : restent visibles directement
+   dans la nav plutot que dans un menu - ce sont les 2 nouveautes a pousser. */
+.nav-feature{display:inline-flex!important;align-items:center;gap:7px}
+.nav-feature .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.nav-feature.gold{color:var(--gold-soft)!important}
+.nav-feature.gold .dot{background:var(--gold);box-shadow:0 0 8px var(--gold-glow)}
+.nav-feature.violet{color:#c9b6ff!important}
+.nav-feature.violet .dot{background:#c9b6ff;box-shadow:0 0 8px rgba(150,110,255,.4)}
 
 .burger{display:none;background:transparent;border:1px solid var(--line-strong);border-radius:12px;
   padding:11px;cursor:pointer}
@@ -224,6 +252,10 @@ a{color:inherit}
   background:linear-gradient(135deg,var(--gold-soft),var(--gold-2));
   box-shadow:0 8px 24px rgba(228,182,74,.3)}
 .fs-grid{display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center;margin-top:20px}
+/* Empile 2 cartes independantes (Stats + Tibi Companion) - .fs-visual garde
+   son propre cadre/overflow:hidden pour la carte Stats seule, la carte
+   Companion est un second bloc autonome relie par .companion-link. */
+.fs-visual-stack{display:flex;flex-direction:column}
 .fs-visual{position:relative;border-radius:var(--radius-lg);overflow:hidden;
   border:1px solid var(--gold-line);box-shadow:var(--shadow)}
 .fs-visual img{display:block;width:100%;height:100%;object-fit:cover;object-position:top}
@@ -272,6 +304,25 @@ a{color:inherit}
 .smc-spark i{flex:1;display:block;background:linear-gradient(180deg,#c9b6ff,#8f6bff);
   border-radius:2px 2px 0 0;height:var(--h);opacity:.9}
 
+/* Second "appareil" empile sous le mock Stats : la fenetre Tibi Companion.
+   Meme grammaire visuelle (panel-top/pt-title/pt-live) que le mock Stats,
+   pour lire comme le MEME dashboard, pas un produit different. Reliees par
+   un trait vertical degrade (or -> violet) qui porte le sens : Companion
+   EST le module Stats, prolonge hors du jeu. */
+.companion-link{position:relative;height:20px;margin:-2px 0 -2px 30px;width:2px;
+  background:linear-gradient(180deg,rgba(150,110,255,.3),var(--gold-line))}
+.companion-mock{background:linear-gradient(180deg,rgba(20,15,7,.92),rgba(8,7,5,.9));
+  border:1px solid var(--gold-line);border-radius:var(--radius-lg);overflow:hidden;
+  max-width:88%;margin-left:auto;box-shadow:var(--shadow-soft)}
+.companion-mock .panel-top{padding:14px 20px;margin-bottom:0;border-bottom:1px solid var(--gold-line)}
+.companion-mock .pt-title{color:var(--gold-soft)}
+.companion-body{display:flex;align-items:center;gap:13px;padding:16px 20px}
+.companion-tray{flex-shrink:0;width:34px;height:34px;border-radius:9px;
+  background:linear-gradient(155deg,#1a0d0d,#2b1210);border:1px solid var(--gold-line);
+  display:flex;align-items:center;justify-content:center;color:var(--gold)}
+.companion-text b{display:block;font-size:.88rem;font-weight:800}
+.companion-text span{font-size:.78rem;color:var(--muted)}
+
 /* =========================== CATALOGUE (graphite) ===================== */
 .catalog-total{margin-top:14px;font-size:.95rem;color:var(--muted)}
 .catalog-total [data-total-downloads]{color:var(--gold-soft);font-weight:900;font-size:1.05rem}
@@ -293,7 +344,6 @@ a{color:inherit}
 .filter-btn:hover{color:var(--text);border-color:var(--line-strong)}
 .filter-btn.active{color:#120c02;border-color:transparent;
   background:linear-gradient(135deg,var(--gold-soft),var(--gold-2));font-weight:800}
-.afc{font-size:.72rem;opacity:.7;margin-left:3px}
 
 /* Grille bento */
 .cards-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px}
@@ -353,7 +403,7 @@ a{color:inherit}
 .interface-panel{background:var(--graphite-2);border:1px solid var(--line);
   border-radius:var(--radius-lg);padding:clamp(22px,4vw,42px);box-shadow:var(--shadow-soft)}
 .showcase-split{display:grid;grid-template-columns:1.1fr .9fr;gap:48px;align-items:center}
-.showcase-gallery{display:flex;flex-direction:column;gap:12px}
+.showcase-gallery{display:flex;flex-direction:column;gap:12px;min-width:0}
 .gallery-main{border-radius:var(--radius);overflow:hidden;background:#050506;
   border:1px solid var(--line);aspect-ratio:16/9;box-shadow:var(--shadow-soft)}
 .gallery-main img{width:100%;height:100%;object-fit:cover;display:block;transition:opacity .35s}
@@ -366,7 +416,7 @@ a{color:inherit}
 .gallery-thumb.active img,.gallery-thumb:hover img{opacity:1}
 .gallery-caption{text-align:center;font-size:.78rem;color:var(--muted);min-height:1.2em}
 
-.showcase-import{display:flex;flex-direction:column;gap:18px}
+.showcase-import{display:flex;flex-direction:column;gap:18px;min-width:0}
 .showcase-import h3{font-size:clamp(1.8rem,3.4vw,2.8rem);font-weight:900;line-height:1.05;
   letter-spacing:-.035em;margin:6px 0 0}
 .showcase-desc{color:var(--muted);font-size:1rem;margin:0}
@@ -437,16 +487,6 @@ a{color:inherit}
 @keyframes gpu-fill{to{width:97%}}
 .hw-gpu-tier{font-size:.65rem;text-transform:uppercase;letter-spacing:.2em;color:var(--gold);font-weight:900}
 
-/* =========================== MA LISTE (graphite) ====================== */
-.addon-legal{font-size:.82rem;color:var(--muted);text-align:center;max-width:820px;margin:0 auto 36px;line-height:1.6}
-.addon-filters{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:40px;justify-content:center}
-.cat-group{margin-bottom:34px;transition:opacity .2s}
-.cat-group.hidden{display:none}
-.addons-cat-title{display:flex;align-items:center;gap:12px;margin-bottom:14px;font-size:.7rem;
-  text-transform:uppercase;letter-spacing:.2em;color:var(--gold);font-weight:900}
-.addons-cat-title::after{content:"";flex:1;height:1px;background:var(--line)}
-.cat-icon{display:flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;
-  background:rgba(228,182,74,.1);color:var(--gold);flex-shrink:0}
 .addon-chips{display:flex;flex-wrap:wrap;gap:8px}
 .addon-chip{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:999px;
   border:1px solid var(--line);background:var(--graphite-3);color:var(--muted);text-decoration:none;
@@ -487,23 +527,25 @@ a{color:inherit}
 .reveal.visible{opacity:1;transform:none}
 
 /* =========================== Responsive =============================== */
-/* Le menu passe en burger des 1320px : le .container plafonne a 1200px
-   (width:min(1200px,92%)), donc en dessous d'un viewport d'environ 1304px
-   (1200/0.92) le conteneur retrecit sous 1200px et la nav, deja dense avec
-   "Mon Dashboard" et "Donnée live Tibiscui", se remet a wrapper sur 2
-   lignes. Seuil dedie, distinct du 960px utilise pour l'empilement des
-   grilles ci-dessous. */
-@media (max-width:1320px){
+/* Le menu passe en burger des 920px. Nav allegee (5 reperes top-level au
+   lieu de 10 liens a plat, cf. Modules/Dashboards ci-dessus) : le seuil de
+   bascule burger redescend d'autant, elle n'a plus besoin de toute la
+   largeur du conteneur pour tenir sur une ligne. */
+@media (max-width:920px){
   .main-nav{position:fixed;inset:72px 0 auto 0;flex-direction:column;align-items:stretch;gap:0;
     background:rgba(8,7,6,.97);backdrop-filter:blur(16px);border-bottom:1px solid var(--gold-line);
     padding:12px 22px 22px;transform:translateY(-140%);transition:transform .35s var(--ease);
-    box-shadow:0 30px 60px rgba(0,0,0,.5);order:0}
+    box-shadow:0 30px 60px rgba(0,0,0,.5);order:0;overflow-y:auto;max-height:calc(100vh - 72px)}
   .main-nav.open{transform:none}
-  .main-nav a{padding:14px 4px;border-bottom:1px solid var(--line)}
-  .main-nav a:not(.nav-cta)::after{display:none}
+  .main-nav>a,.nav-drop>summary{padding:14px 4px;border-bottom:1px solid var(--line)}
+  .main-nav>a:not(.nav-cta)::after{display:none}
   .nav-cta{margin-top:12px;text-align:center}
   .burger{display:block}
   .nav-right{order:0}
+  /* Le sous-menu devient un simple bloc statique dans le tiroir mobile,
+     plus une bulle flottante ancree en absolu. */
+  .nav-drop .panel{position:static;box-shadow:none;border:0;background:rgba(255,255,255,.03);
+    margin:2px 0 6px;border-radius:10px}
 }
 @media (max-width:960px){
   .hero-grid,.fs-grid,.showcase-split{grid-template-columns:1fr;gap:36px}
@@ -751,6 +793,17 @@ a{color:inherit}
 .kpi-delta--up{color:#7be2a8}
 .kpi-delta--down{color:#ff8a8a}
 .kpi-delta--flat{color:var(--muted-cool)}
+
+.pvp-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:20px;margin:0 0 30px}
+.pvp-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.pvp-currency{color:var(--muted);font-size:.85rem}
+.pvp-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;border-top:1px solid var(--line)}
+.pvp-row:first-of-type{border-top:none}
+.pvp-bracket-label{color:var(--text);font-weight:700;font-size:.9rem;flex:1}
+.pvp-bracket-rating{color:var(--gold-soft);font-weight:800}
+.pvp-bracket-best{color:var(--muted);font-weight:500;font-size:.78rem}
+.pvp-bracket-record{color:var(--muted);font-size:.85rem}
 
 /* -- Graphique principal -- */
 .bi-chart-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius);

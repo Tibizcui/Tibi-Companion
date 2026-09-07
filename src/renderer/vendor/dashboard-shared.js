@@ -1,17 +1,10 @@
 /* ============================================================================
-   -- FICHIER VENDU (copie synchronisée) --
-   Source de vérité : dépôt "Tibiscui.fr" / dashboard-shared.js.
-   Ne PAS modifier la logique de décodage ici sans reporter le changement dans
-   les 3 côtés : Stats/Libs/LZW.lua + Stats/Export.lua (dépôt TibiSuite -
-   Unifié) ET Tibiscui.fr/dashboard-shared.js. Le rendu (HTML/graphiques) peut
-   diverger librement de la version site si besoin propre à l'app.
-============================================================================ */
-/* ============================================================================
    TibiSuite - dashboard-shared.js (v2 - BI)
    ----------------------------------------------------------------------------
-   Moteur partage par Dashboard.html (visualiseur generique multi-personnages,
-   codes colles par le visiteur, stockes en localStorage) et Dashboard-Tibi.html
-   (page figee sur un ou plusieurs exports fixes fournis par le site). Aucun
+   Moteur partage par les deux sections de Dashboard.html : "Mon Dashboard"
+   (visualiseur generique multi-personnages, codes colles par le visiteur,
+   stockes en localStorage) et "Donnee live Tibiscui" (section figee sur un ou
+   plusieurs exports fixes fournis par le site). Aucun
    appel reseau pour les donnees : le(s) code(s) d'export sont decodes et
    affiches entierement dans le navigateur du visiteur.
 
@@ -114,7 +107,12 @@
   function decodeExportCode(code) {
     code = (code || "").trim();
     if (!code) throw new Error("Code vide.");
-    var compressed = atob(code);
+    var compressed;
+    try {
+      compressed = atob(code);
+    } catch (e) {
+      throw new Error("Code invalide : ce n'est pas un code d'export TibiSuite reconnaissable.");
+    }
     var json = lzwDecompress(compressed);
     var parsed = JSON.parse(toUtf8(json));
     // La somme de controle (djb2) est calculee cote Lua sur les OCTETS BRUTS
@@ -222,6 +220,13 @@
     if (ed == null) return esc(iso);
     var d = new Date(ed * 86400000);
     return d.getUTCDate() + " " + MONTHS_FR[d.getUTCMonth()];
+  }
+  function fmtGeneratedAt(ts) {
+    if (!ts) return "";
+    var d = new Date(ts * 1000);
+    var dd = String(d.getUTCDate()).padStart(2, "0");
+    var mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    return dd + "/" + mm + "/" + d.getUTCFullYear();
   }
   function fmtDateLong(iso) {
     var ed = isoToEpochDay(iso);
@@ -444,6 +449,42 @@
         '<span class="dash-banner-name" style="color:' + color + '">' + esc(char.name || "?") + "</span> " +
         (char.ilvl ? '<span class="dash-banner-ilvl">[' + esc(char.ilvl) + "]</span> " : "") +
         (tail ? '<span class="dash-banner-tail">&mdash; ' + tail + "</span>" : "") +
+        (char.achievementPoints != null ? '<span class="dash-banner-tail"> - ' + esc(fmtNum(char.achievementPoints)) + " points de hauts faits</span>" : "") +
+      "</div>"
+    );
+  }
+
+  // Photo instantanee fournie par Blizzard (cote/saison, victoires-defaites,
+  // honneur, conquete) - pas d'historique jour par jour comme les cartes KPI
+  // ci-dessus, donc pas de sparkline/delta : juste l'etat actuel.
+  var PVP_BRACKET_ORDER = ["2v2", "3v3", "rbg", "shuffle", "blitz"];
+  var PVP_BRACKET_LABELS = { "2v2": "Arene 2c2", "3v3": "Arene 3c3", rbg: "BG classe", shuffle: "Melee solo", blitz: "Blitz" };
+
+  function renderPvpCard(char) {
+    var pvp = char && char.pvp;
+    if (!pvp) return "";
+    var rows = PVP_BRACKET_ORDER.map(function (key) {
+      var b = pvp.brackets && pvp.brackets[key];
+      if (!b) return "";
+      var losses = Math.max(0, (b.seasonPlayed || 0) - (b.seasonWon || 0));
+      return (
+        '<div class="pvp-row">' +
+          '<span class="pvp-bracket-label">' + esc(PVP_BRACKET_LABELS[key]) + "</span>" +
+          '<span class="pvp-bracket-rating">' + esc(b.rating || 0) + " <span class=\"pvp-bracket-best\">(meilleur " + esc(b.seasonBest || b.rating || 0) + ")</span></span>" +
+          '<span class="pvp-bracket-record">' + esc(b.seasonWon || 0) + "V / " + esc(losses) + "D</span>" +
+        "</div>"
+      );
+    }).join("");
+    if (!rows && pvp.honor == null && pvp.conquest == null) return "";
+    var currency = [];
+    if (pvp.honor != null) currency.push("Honneur : " + fmtNum(pvp.honor));
+    if (pvp.conquest != null) currency.push("Conquete : " + fmtNum(pvp.conquest));
+    return (
+      '<div class="pvp-card">' +
+        '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">PVP</h3>' +
+        (currency.length ? '<span class="pvp-currency">' + esc(currency.join("  &middot;  ")) + "</span>" : "") +
+        "</div>" +
+        (rows || '<p class="kpi-sub">Aucune activite PVP classee cette saison.</p>') +
       "</div>"
     );
   }
@@ -759,7 +800,7 @@
       var bounds = dayKeyBounds(active.days);
       var period = bounds.min != null
         ? '<p class="bi-period">Du <strong>' + esc(fmtDateShort(epochDayToIso(win.from))) + "</strong> au <strong>" + esc(fmtDateShort(epochDayToIso(win.to))) + "</strong>" +
-          (active.generatedAt ? ' &middot; export genere le ' + esc(active.generatedAt) : "") + "</p>"
+          (active.generatedAt ? ' &middot; export genere le ' + esc(fmtGeneratedAt(active.generatedAt)) : "") + "</p>"
         : "";
 
       var kpis = renderKpis(active, win);
@@ -776,6 +817,7 @@
       }
       html += period;
       html += kpis;
+      html += renderPvpCard(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
