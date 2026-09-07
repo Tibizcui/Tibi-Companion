@@ -794,25 +794,24 @@ a{color:inherit}
 .kpi-delta--down{color:#ff8a8a}
 .kpi-delta--flat{color:var(--muted-cool)}
 
-.pvp-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);
-  padding:20px;margin:0 0 30px}
-.pvp-card-head{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;margin-bottom:10px}
-.pvp-chips{display:flex;gap:22px;flex-wrap:wrap;row-gap:10px}
-.pvp-chips--wrap{flex-wrap:wrap;margin-top:4px}
-.pvp-chip{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
-.pvp-chips--wrap .pvp-chip{align-items:flex-start}
-.pvp-chip-label{color:var(--muted);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
-.pvp-chip-value{color:var(--gold-soft);font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
-.pvp-subhead{display:flex;align-items:baseline;justify-content:space-between;gap:14px;margin:16px 0 4px}
-.pvp-subhead--divider{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
-.pvp-subtitle{color:var(--gold-soft);font-weight:700;font-size:.85rem}
-.pvp-subvalue{color:var(--muted);font-size:.85rem}
-.pvp-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;border-top:1px solid var(--line)}
-.pvp-row:first-of-type{border-top:none}
-.pvp-bracket-label{color:var(--text);font-weight:700;font-size:.9rem;flex:1}
-.pvp-bracket-rating{color:var(--gold-soft);font-weight:800}
-.pvp-bracket-best{color:var(--muted);font-weight:500;font-size:.78rem}
-.pvp-bracket-record{color:var(--muted);font-size:.85rem}
+.stats-tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:0 0 20px}
+.stats-tile{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px}
+.stats-tile-title{color:var(--gold-soft);font-weight:700;font-size:.85rem;margin-bottom:10px}
+.stats-tile-stats{display:flex;gap:18px;margin-bottom:10px}
+.stats-tile-label{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.03em}
+.stats-tile-value{color:var(--text);font-size:1.25rem;font-weight:700;letter-spacing:-.01em}
+.stats-tile-sub{border-top:1px solid var(--line);padding-top:8px;font-size:.78rem;color:var(--muted)}
+.stats-detail{margin:0 0 24px}
+.stats-table-title{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
+.stats-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:0 0 20px}
+.stats-table th{text-align:left;padding:4px 0;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700}
+.stats-table th.num,.stats-table td.num{text-align:right}
+.stats-table td{padding:8px 0;border-top:1px solid var(--line);color:var(--text)}
+
+@media (max-width:640px){
+  .stats-tiles{grid-template-columns:1fr}
+  .stats-tile-stats{flex-wrap:wrap;row-gap:8px}
+}
 
 /* -- Graphique principal -- */
 .bi-chart-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius);

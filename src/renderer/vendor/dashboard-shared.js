@@ -467,107 +467,104 @@
     return Math.round((wins / total) * 100);
   }
 
-  function subheadHtml(title, value, extraClass) {
-    return '<div class="pvp-subhead' + (extraClass ? " " + extraClass : "") + '"><span class="pvp-subtitle">' + esc(title) + "</span>"
-      + '<span class="pvp-subvalue">' + esc(value) + "</span></div>";
+  function tileHtml(title, stats, sub) {
+    return (
+      '<div class="stats-tile">' +
+        '<div class="stats-tile-title">' + esc(title) + "</div>" +
+        '<div class="stats-tile-stats">' +
+          stats.map(function (s) { return '<div><div class="stats-tile-label">' + esc(s[0]) + '</div><div class="stats-tile-value">' + esc(s[1]) + "</div></div>"; }).join("") +
+        "</div>" +
+        (sub ? '<div class="stats-tile-sub">' + sub + "</div>" : "") +
+      "</div>"
+    );
   }
 
-  function renderPvpCard(char) {
+  // Trois tuiles resume (Gouffres / PVP / Tourments) - photo instantanee
+  // fournie par Blizzard, pas d'historique jour par jour comme les cartes
+  // KPI ci-dessus (aucune donnee equivalente n'existe cote client). Le
+  // detail (par bracket, par champ de bataille, par type de gouffre) est
+  // rendu a part par renderPvpDetail/renderDelveDetail, en tableaux.
+  function renderSummaryTiles(char) {
+    var pvp = char && char.pvp, t = char && char.torghast;
+    var types = char && char.delveTypes;
+    var delveTotal = 0;
+    if (types) Object.keys(types).forEach(function (n) { delveTotal += types[n].count || 0; });
+
+    var delveSub = char && char.delveAllMaxed ? '<span style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>'
+      : (delveTotal === 0 ? "Aucun gouffre termine" : "");
+    var pvpSub = (pvp && pvp.brackets && Object.keys(pvp.brackets).length) ? "" : "Aucune activite PVP classee cette saison.";
+    var torghastSub = (t && (t.highestLayer != null || t.soulAsh != null || t.soulCinders != null)) ? "" : "Aucune donnee Tourments pour ce personnage.";
+
+    return (
+      '<div class="stats-tiles">' +
+        tileHtml("Gouffres", [["Total", fmtNum(delveTotal)], ["Palier", (char && char.delveHighestTier != null) ? char.delveHighestTier : "-"], ["Compagnon", (char && char.delveCompanionLevel != null) ? char.delveCompanionLevel : "-"]], delveSub) +
+        tileHtml("PVP", [["Tues", fmtNum(pvp && pvp.honorableKills || 0)], ["Honneur", fmtNum(pvp && pvp.honor || 0)], ["Conquete", fmtNum(pvp && pvp.conquest || 0)]], pvpSub) +
+        tileHtml("Tourments", [["Palier", (t && t.highestLayer != null) ? t.highestLayer : "-"], ["Cendres", fmtNum(t && t.soulAsh || 0)], ["Noires", fmtNum(t && t.soulCinders || 0)]], torghastSub) +
+      "</div>"
+    );
+  }
+
+  function tableHtml(title, headers, rows, noDataText) {
+    if (!rows.length) return '<p class="kpi-sub" style="margin:0 0 18px">' + esc(noDataText) + "</p>";
+    return (
+      '<div class="stats-table-title">' + esc(title) + "</div>" +
+      '<table class="stats-table"><thead><tr>' +
+        headers.map(function (h) { return '<th class="' + (h[1] || "") + '">' + esc(h[0]) + "</th>"; }).join("") +
+      "</tr></thead><tbody>" +
+        rows.map(function (r) { return "<tr>" + r.map(function (c) { return '<td class="' + (c[1] || "") + '">' + c[0] + "</td>"; }).join("") + "</tr>"; }).join("") +
+      "</tbody></table>"
+    );
+  }
+
+  // Detail PVP : bilan par bracket + detail par champ de bataille, en
+  // tableaux, sous les tuiles resume.
+  function renderPvpDetail(char) {
     var pvp = char && char.pvp;
     if (!pvp) return "";
-    var rows = PVP_BRACKET_ORDER.map(function (key) {
-      var b = pvp.brackets && pvp.brackets[key];
-      if (!b) return "";
-      var wins = b.seasonWon || 0, losses = Math.max(0, (b.seasonPlayed || 0) - wins);
-      return (
-        '<div class="pvp-row">' +
-          '<span class="pvp-bracket-label">' + esc(PVP_BRACKET_LABELS[key]) + "</span>" +
-          '<span class="pvp-bracket-rating">' + esc(b.rating || 0) + " <span class=\"pvp-bracket-best\">(meilleur " + esc(b.seasonBest || b.rating || 0) + ")</span></span>" +
-          '<span class="pvp-bracket-record">' + esc(wins) + "V / " + esc(losses) + "D (" + pctOf(wins, wins + losses) + "%)</span>" +
-        "</div>"
-      );
-    }).join("");
-    var hasAnything = rows || pvp.honor != null || pvp.conquest != null || pvp.honorableKills != null
-      || pvp.deathsByPlayers != null || pvp.deathsByEnemyFaction != null || pvp.bgParticipation != null;
-    if (!hasAnything) return "";
 
-    var chips = "";
-    if (pvp.honorableKills != null) chips += chipHtml("Adversaires tues", fmtNum(pvp.honorableKills));
-    if (pvp.deathsByPlayers != null) chips += chipHtml("Tue par un joueur", fmtNum(pvp.deathsByPlayers));
-    if (pvp.deathsByEnemyFaction != null) chips += chipHtml("Tue par la faction adverse", fmtNum(pvp.deathsByEnemyFaction));
-    if (pvp.honor != null) chips += chipHtml("Honneur", fmtNum(pvp.honor));
-    if (pvp.conquest != null) chips += chipHtml("Conquete", fmtNum(pvp.conquest));
-
+    var lineParts = [];
+    if (pvp.deathsByPlayers != null) lineParts.push("Tue par un joueur : " + fmtNum(pvp.deathsByPlayers));
+    if (pvp.deathsByEnemyFaction != null) lineParts.push("Tue par la faction adverse : " + fmtNum(pvp.deathsByEnemyFaction));
     var arena = pvp.arena;
-    var arenaHtml = subheadHtml(
-      "Arene (2c2+3c3+melee solo)",
-      arena ? (fmtNum(arena.played || 0) + " matchs - " + fmtNum(arena.won || 0) + " victoires (" + pctOf(arena.won || 0, arena.played || 0) + "%)") : "-"
-    );
+    lineParts.push("Arene (2c2+3c3+melee solo) : " + (arena ? (fmtNum(arena.played || 0) + " matchs - " + fmtNum(arena.won || 0) + " victoires (" + pctOf(arena.won || 0, arena.played || 0) + "%)") : "-"));
+    lineParts.push("Champs de bataille : " + (pvp.bgParticipation ? (fmtNum(pvp.bgParticipation) + " participations - " + fmtNum(pvp.bgWinsTotal || 0) + " victoires (" + pctOf(pvp.bgWinsTotal || 0, pvp.bgParticipation) + "%)") : "-"));
+    var summaryLine = '<p class="kpi-sub" style="margin:0 0 16px">' + lineParts.map(esc).join(" &middot; ") + "</p>";
 
-    var bgHtml = subheadHtml(
-      "Champs de bataille",
-      pvp.bgParticipation ? (fmtNum(pvp.bgParticipation) + " participations - " + fmtNum(pvp.bgWinsTotal || 0) + " victoires (" + pctOf(pvp.bgWinsTotal || 0, pvp.bgParticipation) + "%)") : "-",
-      "pvp-subhead--divider"
-    );
-    var bgRows = "";
+    var bracketRows = PVP_BRACKET_ORDER.map(function (key) {
+      var b = pvp.brackets && pvp.brackets[key];
+      if (!b) return null;
+      var wins = b.seasonWon || 0, losses = Math.max(0, (b.seasonPlayed || 0) - wins);
+      return [
+        [esc(PVP_BRACKET_LABELS[key])],
+        ['<span style="color:var(--gold-soft);font-weight:700">' + esc(b.rating || 0) + "</span>", "num"],
+        [esc(b.seasonBest || b.rating || 0), "num"],
+        [esc(wins) + "V / " + esc(losses) + "D (" + pctOf(wins, wins + losses) + "%)", "num"],
+      ];
+    }).filter(Boolean);
+    var bracketTable = tableHtml("Detail par bracket", [["Bracket"], ["Cote", "num"], ["Meilleur", "num"], ["Bilan", "num"]], bracketRows, "Aucune activite PVP classee cette saison.");
+
+    var bgRows = [];
     if (pvp.bgWinsByName) {
       var names = Object.keys(pvp.bgWinsByName).sort(function (a, b) { return pvp.bgWinsByName[b] - pvp.bgWinsByName[a]; }).slice(0, 6);
-      bgRows = names.map(function (n) {
-        return '<div class="pvp-row"><span class="pvp-bracket-label">' + esc(n) + "</span><span class=\"pvp-bracket-record\">" + esc(pvp.bgWinsByName[n]) + " victoires</span></div>";
-      }).join("");
+      bgRows = names.map(function (n) { return [[esc(n)], [esc(pvp.bgWinsByName[n]), "num"]]; });
     }
-    if (!bgRows) bgRows = '<p class="kpi-sub">Aucun champ de bataille joue.</p>';
+    var bgTable = tableHtml("Champs de bataille - detail", [["Nom"], ["Victoires", "num"]], bgRows, "Aucun champ de bataille joue.");
 
-    return (
-      '<div class="pvp-card">' +
-        '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">PVP</h3>' +
-        (chips ? '<div class="pvp-chips">' + chips + "</div>" : "") +
-        "</div>" +
-        arenaHtml +
-        (rows || '<p class="kpi-sub">Aucune activite PVP classee cette saison.</p>') +
-        bgHtml + bgRows +
-      "</div>"
-    );
+    return '<div class="stats-detail">' + summaryLine + bracketTable + bgTable + "</div>";
   }
 
-  function chipHtml(label, value) {
-    return '<div class="pvp-chip"><span class="pvp-chip-label">' + esc(label) + '</span><span class="pvp-chip-value">' + esc(value) + "</span></div>";
-  }
-
-  // Contenu ancien (Ombreterre) - pareil que la carte PVP, un snapshot sans
-  // historique jour par jour.
-  function renderTorghastCard(char) {
-    var t = char && char.torghast;
-    if (!t || (t.highestLayer == null && t.soulAsh == null && t.soulCinders == null)) return "";
-    var chips = "";
-    if (t.highestLayer != null) chips += chipHtml("Palier max", t.highestLayer);
-    if (t.soulAsh != null) chips += chipHtml("Cendres d'ame", fmtNum(t.soulAsh));
-    if (t.soulCinders != null) chips += chipHtml("Cendres d'ames noires", fmtNum(t.soulCinders));
-    return (
-      '<div class="pvp-card">' +
-        '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">Tourments</h3></div>' +
-        '<div class="pvp-chips pvp-chips--wrap">' + chips + "</div>" +
-      "</div>"
-    );
-  }
-
-  function renderDelveTypesCard(char) {
+  // Detail Gouffres : tableau par type (nom / nombre de fois / palier max).
+  function renderDelveDetail(char) {
     var types = char && char.delveTypes;
-    if (!types || !Object.keys(types).length) return "";
-    var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 8);
-    var rows = names.map(function (n) {
-      var e = types[n];
-      return '<div class="pvp-row"><span class="pvp-bracket-label">' + esc(n) + "</span><span class=\"pvp-bracket-record\">"
-        + esc(e.count || 0) + "x - palier max " + esc(e.highestTier || 0) + "</span></div>";
-    }).join("");
-    return (
-      '<div class="pvp-card">' +
-        '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">Detail par gouffre</h3>' +
-        (char.delveAllMaxed ? '<span class="pvp-subvalue" style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>' : "") +
-        "</div>" +
-        rows +
-      "</div>"
-    );
+    var rows = [];
+    if (types) {
+      var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 8);
+      rows = names.map(function (n) {
+        var e = types[n];
+        return [[esc(n)], [esc(e.count || 0), "num"], ['<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestTier || 0) + "</span>", "num"]];
+      });
+    }
+    return '<div class="stats-detail">' + tableHtml("Detail par gouffre", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
   }
 
   function deltaBadge(cur, prev) {
@@ -907,9 +904,9 @@
       }
       html += period;
       html += kpis;
-      html += renderDelveTypesCard(active.char);
-      html += renderPvpCard(active.char);
-      html += renderTorghastCard(active.char);
+      html += renderSummaryTiles(active.char);
+      html += renderPvpDetail(active.char);
+      html += renderDelveDetail(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
