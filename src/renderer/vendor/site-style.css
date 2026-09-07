@@ -796,8 +796,13 @@ a{color:inherit}
 
 .pvp-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:20px;margin:0 0 30px}
-.pvp-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.pvp-currency{color:var(--muted);font-size:.85rem}
+.pvp-card-head{display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap;margin-bottom:10px}
+.pvp-chips{display:flex;gap:22px}
+.pvp-chips--wrap{flex-wrap:wrap;margin-top:4px}
+.pvp-chip{display:flex;flex-direction:column;align-items:flex-end;gap:2px}
+.pvp-chips--wrap .pvp-chip{align-items:flex-start}
+.pvp-chip-label{color:var(--muted);font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.pvp-chip-value{color:var(--gold-soft);font-size:1.25rem;font-weight:800;letter-spacing:-.01em}
 .pvp-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:8px 0;border-top:1px solid var(--line)}
 .pvp-row:first-of-type{border-top:none}
 .pvp-bracket-label{color:var(--text);font-weight:700;font-size:.9rem;flex:1}

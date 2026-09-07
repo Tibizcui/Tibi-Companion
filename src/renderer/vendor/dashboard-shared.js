@@ -478,17 +478,21 @@
       );
     }).join("");
     if (!rows && pvp.honor == null && pvp.conquest == null) return "";
-    var currency = [];
-    if (pvp.honor != null) currency.push("Honneur : " + fmtNum(pvp.honor));
-    if (pvp.conquest != null) currency.push("Conquete : " + fmtNum(pvp.conquest));
+    var chips = "";
+    if (pvp.honor != null) chips += chipHtml("Honneur", fmtNum(pvp.honor));
+    if (pvp.conquest != null) chips += chipHtml("Conquete", fmtNum(pvp.conquest));
     return (
       '<div class="pvp-card">' +
         '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">PVP</h3>' +
-        (currency.length ? '<span class="pvp-currency">' + esc(currency.join("  &middot;  ")) + "</span>" : "") +
+        (chips ? '<div class="pvp-chips">' + chips + "</div>" : "") +
         "</div>" +
         (rows || '<p class="kpi-sub">Aucune activite PVP classee cette saison.</p>') +
       "</div>"
     );
+  }
+
+  function chipHtml(label, value) {
+    return '<div class="pvp-chip"><span class="pvp-chip-label">' + esc(label) + '</span><span class="pvp-chip-value">' + esc(value) + "</span></div>";
   }
 
   // Contenu ancien (Ombreterre) - pareil que la carte PVP, un snapshot sans
@@ -496,14 +500,14 @@
   function renderTorghastCard(char) {
     var t = char && char.torghast;
     if (!t || (t.highestLayer == null && t.soulAsh == null && t.soulCinders == null)) return "";
-    var parts = [];
-    if (t.highestLayer != null) parts.push("Palier max " + t.highestLayer);
-    if (t.soulAsh != null) parts.push("Cendres d'ame : " + fmtNum(t.soulAsh));
-    if (t.soulCinders != null) parts.push("Cendres d'ames noires : " + fmtNum(t.soulCinders));
+    var chips = "";
+    if (t.highestLayer != null) chips += chipHtml("Palier max", t.highestLayer);
+    if (t.soulAsh != null) chips += chipHtml("Cendres d'ame", fmtNum(t.soulAsh));
+    if (t.soulCinders != null) chips += chipHtml("Cendres d'ames noires", fmtNum(t.soulCinders));
     return (
       '<div class="pvp-card">' +
         '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">Tourments</h3></div>' +
-        '<p class="kpi-sub">' + esc(parts.join("  &middot;  ")) + "</p>" +
+        '<div class="pvp-chips pvp-chips--wrap">' + chips + "</div>" +
       "</div>"
     );
   }
