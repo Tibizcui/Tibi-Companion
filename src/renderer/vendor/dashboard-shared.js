@@ -242,7 +242,7 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, dayCount: 0, activeDayCount: 0 };
+    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
       var d = days[k] || {};
@@ -252,6 +252,7 @@
       out.played += d.played || 0;
       out.dungeons += d.dungeons || 0;
       out.mplusCount += (d.mplus && d.mplus.length) || 0;
+      out.delves += d.delves || 0;
       out.dayCount++;
       if ((d.quests || d.played || d.dungeons)) out.activeDayCount++;
     });
@@ -425,8 +426,9 @@
     gold: { label: "Or (net/jour)", get: function (d) { return (d.goldGain || 0) - (d.goldSpent || 0); }, fmt: fmtGold, fmtY: fmtGoldShort },
     played: { label: "Temps joue", get: function (d) { return (d.played || 0) / 3600; }, fmt: function (v) { return fmtHours(v * 3600); }, fmtY: function (v) { return v.toFixed(0) + "h"; } },
     dungeons: { label: "Donjons & M+", get: function (d) { return (d.dungeons || 0) + ((d.mplus && d.mplus.length) || 0); }, fmt: fmtNum, fmtY: fmtNum },
+    delves: { label: "Gouffres", get: function (d) { return d.delves || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons"];
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves"];
 
   function seriesForProfile(profile, metricKey, fromEd, toEd) {
     var metric = METRICS[metricKey];
@@ -489,6 +491,23 @@
     );
   }
 
+  // Contenu ancien (Ombreterre) - pareil que la carte PVP, un snapshot sans
+  // historique jour par jour.
+  function renderTorghastCard(char) {
+    var t = char && char.torghast;
+    if (!t || (t.highestLayer == null && t.soulAsh == null && t.soulCinders == null)) return "";
+    var parts = [];
+    if (t.highestLayer != null) parts.push("Palier max " + t.highestLayer);
+    if (t.soulAsh != null) parts.push("Cendres d'ame : " + fmtNum(t.soulAsh));
+    if (t.soulCinders != null) parts.push("Cendres d'ames noires : " + fmtNum(t.soulCinders));
+    return (
+      '<div class="pvp-card">' +
+        '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">Tourments</h3></div>' +
+        '<p class="kpi-sub">' + esc(parts.join("  &middot;  ")) + "</p>" +
+      "</div>"
+    );
+  }
+
   function deltaBadge(cur, prev) {
     if (prev == null) return '<span class="kpi-delta kpi-delta--flat">periode precedente indisponible</span>';
     if (prev === 0 && cur === 0) return '<span class="kpi-delta kpi-delta--flat">stable</span>';
@@ -498,6 +517,14 @@
     var cls = Math.abs(pct) < 1 ? "kpi-delta--flat" : (up ? "kpi-delta--up" : "kpi-delta--down");
     var arrow = Math.abs(pct) < 1 ? "&#8226;" : (up ? "&#9650;" : "&#9660;");
     return '<span class="kpi-delta ' + cls + '">' + arrow + " " + Math.abs(Math.round(pct)) + "% vs periode precedente</span>";
+  }
+
+  function delvesSubLabel(char) {
+    if (!char) return "";
+    var parts = [];
+    if (char.delveHighestTier != null) parts.push("Palier max " + char.delveHighestTier);
+    if (char.delveCompanionLevel != null) parts.push("Compagnon niv. " + char.delveCompanionLevel);
+    return parts.join(" &middot; ");
   }
 
   function renderKpis(profile, win) {
@@ -512,6 +539,7 @@
       { key: "gold", label: "Or (net)", value: fmtGold(net), cur: net, prev: prevNet, cls: net >= 0 ? "pos" : "neg", sub: fmtGold(t.goldGain) + " gagne &middot; " + fmtGold(t.goldSpent) + " depense", metric: "gold" },
       { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
+      { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
     ];
 
     return (
@@ -818,6 +846,7 @@
       html += period;
       html += kpis;
       html += renderPvpCard(active.char);
+      html += renderTorghastCard(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
