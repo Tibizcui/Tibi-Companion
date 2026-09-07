@@ -551,6 +551,25 @@
     );
   }
 
+  function renderDelveTypesCard(char) {
+    var types = char && char.delveTypes;
+    if (!types || !Object.keys(types).length) return "";
+    var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 8);
+    var rows = names.map(function (n) {
+      var e = types[n];
+      return '<div class="pvp-row"><span class="pvp-bracket-label">' + esc(n) + "</span><span class=\"pvp-bracket-record\">"
+        + esc(e.count || 0) + "x - palier max " + esc(e.highestTier || 0) + "</span></div>";
+    }).join("");
+    return (
+      '<div class="pvp-card">' +
+        '<div class="pvp-card-head"><h3 class="dash-subtitle" style="margin:0">Detail par gouffre</h3>' +
+        (char.delveAllMaxed ? '<span class="pvp-subvalue" style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>' : "") +
+        "</div>" +
+        rows +
+      "</div>"
+    );
+  }
+
   function deltaBadge(cur, prev) {
     if (prev == null) return '<span class="kpi-delta kpi-delta--flat">periode precedente indisponible</span>';
     if (prev === 0 && cur === 0) return '<span class="kpi-delta kpi-delta--flat">stable</span>';
@@ -888,6 +907,7 @@
       }
       html += period;
       html += kpis;
+      html += renderDelveTypesCard(active.char);
       html += renderPvpCard(active.char);
       html += renderTorghastCard(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
