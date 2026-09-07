@@ -477,8 +477,10 @@
         "</div>"
       );
     }).join("");
-    if (!rows && pvp.honor == null && pvp.conquest == null) return "";
+    if (!rows && pvp.honor == null && pvp.conquest == null && pvp.honorableKills == null && pvp.deaths == null) return "";
     var chips = "";
+    if (pvp.honorableKills != null) chips += chipHtml("Adversaires tues", fmtNum(pvp.honorableKills));
+    if (pvp.deaths != null) chips += chipHtml("Morts en PVP", fmtNum(pvp.deaths));
     if (pvp.honor != null) chips += chipHtml("Honneur", fmtNum(pvp.honor));
     if (pvp.conquest != null) chips += chipHtml("Conquete", fmtNum(pvp.conquest));
     return (
