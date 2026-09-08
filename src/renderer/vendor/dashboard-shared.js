@@ -578,11 +578,12 @@
       var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 10);
       rows = names.map(function (n) {
         var e = types[n];
-        var title = e.highestAchievementName ? ' title="' + esc(e.highestAchievementName) + '"' : "";
-        return [[esc(n)], [esc(e.count || 0), "num"], ['<span' + title + ' style="color:var(--gold-soft);font-weight:700' + (title ? ";cursor:help" : "") + '">' + esc(e.highestEchelon || 0) + "</span>", "num"]];
+        var echelonHtml = '<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestEchelon || 0) + "</span>";
+        var achHtml = e.highestAchievementName ? esc(e.highestAchievementName) : "";
+        return [[esc(n)], [esc(e.count || 0), "num"], [echelonHtml, "num"], [achHtml]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Detail par Tourment", [["Nom"], ["Fois", "num"], ["Echelon max", "num"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
+    return '<div class="stats-detail">' + tableHtml("Detail par Tourment", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
   }
 
   function deltaBadge(cur, prev) {
