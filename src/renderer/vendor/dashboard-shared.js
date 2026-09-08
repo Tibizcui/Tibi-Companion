@@ -575,7 +575,7 @@
     var types = char && char.torghastByDungeon;
     var rows = [];
     if (types) {
-      var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 8);
+      var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 10);
       rows = names.map(function (n) {
         var e = types[n];
         return [[esc(n)], [esc(e.count || 0), "num"], ['<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestEchelon || 0) + "</span>", "num"]];
