@@ -804,9 +804,12 @@ a{color:inherit}
 .stats-detail{margin:0 0 24px}
 .stats-table-title{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
 .stats-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:0 0 20px}
-.stats-table th{text-align:left;padding:4px 0;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700}
+.stats-table th{text-align:left;padding:4px 20px 4px 0;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700}
 .stats-table th.num,.stats-table td.num{text-align:right}
-.stats-table td{padding:8px 0;border-top:1px solid var(--line);color:var(--text)}
+.stats-table th:last-child,.stats-table td:last-child{padding-right:0}
+.stats-table td{padding:8px 20px 8px 0;border-top:1px solid var(--line);color:var(--text)}
+.stats-table td a{color:var(--gold-soft);text-decoration:underline;text-underline-offset:2px}
+.stats-table td a:hover{color:var(--gold)}
 
 @media (max-width:640px){
   .stats-tiles{grid-template-columns:1fr}

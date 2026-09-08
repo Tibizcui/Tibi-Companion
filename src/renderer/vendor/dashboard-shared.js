@@ -178,6 +178,32 @@
     });
   }
 
+  // Slug Armory Blizzard (royaume/nom) : minuscules, sans accents, espaces/
+  // apostrophes -> tiret. Approximation raisonnable de la convention
+  // Blizzard (verifiee sur "Kirin Tor" -> "kirin-tor"), pas garantie a 100%
+  // pour tous les royaumes a caracteres speciaux.
+  function armorySlug(s) {
+    // Filtre par code point (0x0300-0x036f = marques diacritiques
+    // combinantes) plutot qu'une classe de regex avec un caractere accentue
+    // litteral dans le source - evite tout risque d'encodage/normalisation
+    // Unicode invisible au fichier (meme famille de piege que le NBSP
+    // francais rencontre ailleurs dans le projet).
+    var noAccents = String(s || "").normalize("NFD").split("").filter(function (ch) {
+      var code = ch.charCodeAt(0);
+      return !(code >= 0x0300 && code <= 0x036f);
+    }).join("");
+    return noAccents.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  // Lien vers la page Hauts faits du personnage sur l'Armurerie Blizzard EU
+  // (pas de lien profond vers UN haut fait precis : aucun format d'ancre
+  // fiable trouve sur le nouveau site worldofwarcraft.blizzard.com).
+  function armoryCharUrl(char) {
+    if (!char || !char.name || !char.realm) return null;
+    return "https://worldofwarcraft.blizzard.com/fr-fr/worldsoul/eu/armory/character/" +
+      armorySlug(char.realm) + "/" + armorySlug(char.name) + "/achievements";
+  }
+
   function fmtGold(copper) {
     copper = Math.floor(copper || 0);
     var sign = copper < 0 ? "-" : "";
@@ -581,11 +607,17 @@
     var types = char && char.torghastByDungeon;
     var rows = [];
     if (types) {
+      var armoryUrl = armoryCharUrl(char);
       var names = Object.keys(types).sort(function (a, b) { return (types[b].count || 0) - (types[a].count || 0); }).slice(0, 10);
       rows = names.map(function (n) {
         var e = types[n];
         var echelonHtml = '<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestEchelon || 0) + "</span>";
-        var achHtml = e.highestAchievementName ? esc(e.highestAchievementName) : "";
+        var achHtml = "";
+        if (e.highestAchievementName) {
+          achHtml = armoryUrl
+            ? '<a href="' + esc(armoryUrl) + '" target="_blank" rel="noopener" title="Voir sur l\'Armurerie Blizzard">' + esc(e.highestAchievementName) + "</a>"
+            : esc(e.highestAchievementName);
+        }
         return [[esc(n)], [esc(e.count || 0), "num"], [echelonHtml, "num"], [achHtml]];
       });
     }
