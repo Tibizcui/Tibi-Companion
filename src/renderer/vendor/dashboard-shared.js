@@ -487,11 +487,17 @@
   function renderSummaryTiles(char) {
     var pvp = char && char.pvp, t = char && char.torghast;
     var types = char && char.delveTypes;
-    var delveTotal = 0;
-    if (types) Object.keys(types).forEach(function (n) { delveTotal += types[n].count || 0; });
+    var delveTypesTotal = 0;
+    if (types) Object.keys(types).forEach(function (n) { delveTypesTotal += types[n].count || 0; });
+    // delveTypes ne compte qu'a partir du moment ou l'addon a commence a
+    // suivre (aucune API retroactive par NOM de gouffre) ; delveCompletedLifetime
+    // vient des Statistiques Blizzard (a vie, toutes saisons) et peut donc
+    // etre superieur - on prend toujours le plus grand des deux.
+    var delveTotal = Math.max(delveTypesTotal, (char && char.delveCompletedLifetime) || 0);
 
-    var delveSub = char && char.delveAllMaxed ? '<span style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>'
-      : (delveTotal === 0 ? "Aucun gouffre termine" : "");
+    var delveSub = (char && char.delveTierAchievementName) ? '<span style="color:var(--gold-soft);font-weight:700">' + esc(char.delveTierAchievementName) + "</span>"
+      : (char && char.delveAllMaxed ? '<span style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>'
+      : (delveTotal === 0 ? "Aucun gouffre termine" : ""));
     var pvpSub = (pvp && pvp.brackets && Object.keys(pvp.brackets).length) ? "" : "Aucune activite PVP classee cette saison.";
     var torghastSub = (t && (t.highestLayer != null || t.soulAsh != null || t.soulCinders != null)) ? "" : "Aucune donnee Tourments pour ce personnage.";
 
