@@ -599,7 +599,7 @@
     }
     var bgTable = tableHtml("Champs de bataille - detail", [["Nom"], ["Victoires", "num"]], bgRows, "Aucun champ de bataille joue.");
 
-    return '<div class="stats-detail">' + summaryLine + bracketTable + bgTable + "</div>";
+    return '<div class="stats-detail"><div class="stats-detail-title">PVP</div>' + summaryLine + bracketTable + bgTable + "</div>";
   }
 
   // Detail Gouffres : tableau par type (nom / nombre de fois / palier max).

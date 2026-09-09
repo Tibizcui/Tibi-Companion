@@ -801,7 +801,9 @@ a{color:inherit}
 .stats-tile-label{color:var(--muted);font-size:.7rem;text-transform:uppercase;letter-spacing:.03em}
 .stats-tile-value{color:var(--text);font-size:1.25rem;font-weight:700;letter-spacing:-.01em}
 .stats-tile-sub{border-top:1px solid var(--line);padding-top:8px;font-size:.78rem;color:var(--muted)}
-.stats-detail{margin:0 0 24px}
+.stats-detail{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px 20px;margin:0 0 16px}
+.stats-detail-title{color:var(--gold-soft);font-weight:700;font-size:.85rem;margin:0 0 12px}
+.stats-detail .stats-table:last-child{margin-bottom:0}
 .stats-table-title{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px}
 .stats-table{width:100%;border-collapse:collapse;font-size:.85rem;margin:0 0 20px}
 .stats-table th{text-align:left;padding:4px 20px 4px 0;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700}
