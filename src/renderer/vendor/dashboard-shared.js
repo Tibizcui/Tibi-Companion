@@ -268,7 +268,7 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, soulAshGained: 0, dayCount: 0, activeDayCount: 0 };
+    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, soulAshGained: 0, profGained: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
       var d = days[k] || {};
@@ -282,6 +282,7 @@
       out.repGained += d.repGained || 0;
       out.pvpKillsGained += d.pvpKillsGained || 0;
       out.soulAshGained += d.soulAshGained || 0;
+      out.profGained += d.profGained || 0;
       out.dayCount++;
       if ((d.quests || d.played || d.dungeons)) out.activeDayCount++;
     });
@@ -459,10 +460,11 @@
     repGained: { label: "Reputation gagnee", get: function (d) { return d.repGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     pvpKillsGained: { label: "Adversaires tues", get: function (d) { return d.pvpKillsGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     soulAshGained: { label: "Cendres d'ame gagnees", get: function (d) { return d.soulAshGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    profGained: { label: "Points de metier gagnes", get: function (d) { return d.profGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
   // Ordre : stats generales d'abord, puis une metrique par categorie dans le
-  // meme ordre que les tuiles resume (Gouffres/PVP/Tourments/Reputations).
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "soulAshGained", "repGained"];
+  // meme ordre que les tuiles resume (Gouffres/PVP/Tourments/Reputations/Metiers).
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "soulAshGained", "repGained", "profGained"];
 
   function seriesForProfile(profile, metricKey, fromEd, toEd) {
     var metric = METRICS[metricKey];
@@ -665,6 +667,27 @@
     return '<div class="stats-detail">' + tableHtml("Reputation", [["Nom"], ["Systeme"], ["Progression", "num"]], rows, "Aucune progression de reputation recente.") + "</div>";
   }
 
+  // Metiers suivis nativement par Stats (char.professionsNative, distinct
+  // du champ "professions" alimente par SkillTrackerDB pour la vue par
+  // extension ci-dessus) - meme principe strict que reputation : uniquement
+  // les metiers avec une progression RECENTE constatee, exclut ceux deja a
+  // 100%.
+  function renderProfessionDetail(char) {
+    var list = char && char.professionsNative && char.professionsNative.list;
+    var rows = [];
+    if (list) {
+      var recent = list.filter(function (info) { return !info.maxed && info.lastGainAt; });
+      var sorted = recent.slice().sort(function (a, b) { return b.lastGainAt - a.lastGainAt; }).slice(0, 10);
+      rows = sorted.map(function (info) {
+        var pctText = Math.min(100, Math.round((info.pct || 0) * 100)) + "%";
+        var progressHtml = '<span style="color:var(--gold-soft);font-weight:700">' + esc(pctText) + "</span>";
+        var levelText = fmtNum(info.cur || 0) + " / " + fmtNum(info.max || 0);
+        return [[esc(info.name || "?")], [esc(levelText)], [progressHtml, "num"]];
+      });
+    }
+    return '<div class="stats-detail">' + tableHtml("Metiers", [["Nom"], ["Niveau"], ["Progression", "num"]], rows, "Aucune progression de metier recente.") + "</div>";
+  }
+
   function deltaBadge(cur, prev) {
     if (prev == null) return '<span class="kpi-delta kpi-delta--flat">periode precedente indisponible</span>';
     if (prev === 0 && cur === 0) return '<span class="kpi-delta kpi-delta--flat">stable</span>';
@@ -700,6 +723,7 @@
       { key: "pvpKillsGained", label: "Adversaires tues", value: fmtNum(t.pvpKillsGained), cur: t.pvpKillsGained, prev: p ? p.pvpKillsGained : null, metric: "pvpKillsGained" },
       { key: "soulAshGained", label: "Cendres d'ame gagnees", value: fmtNum(t.soulAshGained), cur: t.soulAshGained, prev: p ? p.soulAshGained : null, metric: "soulAshGained" },
       { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
+      { key: "profGained", label: "Points de metier gagnes", value: fmtNum(t.profGained), cur: t.profGained, prev: p ? p.profGained : null, metric: "profGained" },
     ];
 
     return (
@@ -1064,6 +1088,7 @@
       html += renderDelveDetail(active.char);
       html += renderTorghastDungeonDetail(active.char);
       html += renderReputationDetail(active.char);
+      html += renderProfessionDetail(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
