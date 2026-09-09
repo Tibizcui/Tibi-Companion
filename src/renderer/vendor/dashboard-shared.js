@@ -460,7 +460,9 @@
     pvpKillsGained: { label: "Adversaires tues", get: function (d) { return d.pvpKillsGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     soulAshGained: { label: "Cendres d'ame gagnees", get: function (d) { return d.soulAshGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "repGained", "pvpKillsGained", "soulAshGained"];
+  // Ordre : stats generales d'abord, puis une metrique par categorie dans le
+  // meme ordre que les tuiles resume (Gouffres/PVP/Tourments/Reputations).
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "soulAshGained", "repGained"];
 
   function seriesForProfile(profile, metricKey, fromEd, toEd) {
     var metric = METRICS[metricKey];
@@ -695,9 +697,9 @@
       { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
       { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
-      { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
       { key: "pvpKillsGained", label: "Adversaires tues", value: fmtNum(t.pvpKillsGained), cur: t.pvpKillsGained, prev: p ? p.pvpKillsGained : null, metric: "pvpKillsGained" },
       { key: "soulAshGained", label: "Cendres d'ame gagnees", value: fmtNum(t.soulAshGained), cur: t.soulAshGained, prev: p ? p.soulAshGained : null, metric: "soulAshGained" },
+      { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
     ];
 
     return (
