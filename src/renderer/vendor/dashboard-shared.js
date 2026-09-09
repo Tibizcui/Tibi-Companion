@@ -801,7 +801,7 @@
       });
     });
     var names = Object.keys(set);
-    names.sort(function (a, b) { return expIndexOf(a) - expIndexOf(b); });
+    names.sort(function (a, b) { return expIndexOf(b) - expIndexOf(a); });
     return names;
   }
 
