@@ -845,12 +845,15 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 /* -- Colonnes (metiers + historique) -- */
 .bi-columns{display:grid;grid-template-columns:1fr 1.6fr;gap:26px;align-items:start}
 .bi-col{min-width:0}
-.bi-prof-filter{margin:0 0 12px}
+.bi-prof-filter{margin:0 0 12px;max-width:260px}
+.prof-section-title{color:var(--muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;margin:16px 0 8px}
+.prof-section-title:first-child{margin-top:0}
 .prof-grid{display:grid;gap:12px}
 .prof-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px}
-.prof-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 8px}
+.prof-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}
+.prof-icon{width:28px;height:28px;border-radius:6px;flex-shrink:0;border:1px solid var(--line)}
 .prof-name{font-weight:800;color:var(--text);font-size:.92rem}
-.prof-pct{color:var(--gold-soft);font-weight:900;font-size:.85rem}
+.prof-pct{color:var(--gold-soft);font-weight:900;font-size:.85rem;margin-left:auto}
 .prof-bar{height:7px;border-radius:999px;background:var(--graphite-3);overflow:hidden;margin:0 0 6px}
 .prof-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-2));border-radius:999px}
 .prof-nums{color:var(--muted);font-size:.76rem}

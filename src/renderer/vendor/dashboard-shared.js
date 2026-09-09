@@ -787,20 +787,57 @@
       expansions.map(function (e) { return { key: e, label: e }; })
     );
     return (
-      '<div class="filter-buttons bi-prof-filter" role="group" aria-label="Extension (metiers)">' +
+      '<select class="compare-select bi-prof-filter" data-action="prof-filter" aria-label="Extension (metiers)">' +
       opts.map(function (o) {
-        var isActive = active === o.key;
-        return '<button type="button" class="filter-btn' + (isActive ? " active" : "") + '" data-action="prof-filter" data-value="' + esc(o.key) + '" aria-pressed="' + isActive + '">' + esc(o.label) + "</button>";
-      }).join("") + "</div>"
+        return '<option value="' + esc(o.key) + '"' + (active === o.key ? " selected" : "") + ">" + esc(o.label) + "</option>";
+      }).join("") + "</select>"
     );
+  }
+
+  // Icones de metier (jeu "ui_profession_*" introduit avec la refonte
+  // Dragonflight, confirme present sur Wowhead pour l'ensemble des metiers
+  // standards) - mappees par nom FR normalise (sans accents/casse) puisque
+  // l'addon exporte le nom localise, pas un identifiant stable. Metier
+  // absent de la table (secondaire rare, nom inattendu) -> pas d'icone,
+  // le nom texte suffit toujours.
+  var PROFESSION_ICONS = {
+    alchimie: "ui_profession_alchemy",
+    forge: "ui_profession_blacksmithing",
+    enchantement: "ui_profession_enchanting",
+    ingenierie: "ui_profession_engineering",
+    herboristerie: "ui_profession_herbalism",
+    joaillerie: "ui_profession_jewelcrafting",
+    "travail du cuir": "ui_profession_leatherworking",
+    minage: "ui_profession_mining",
+    couture: "ui_profession_tailoring",
+    depecage: "ui_profession_skinning",
+    cuisine: "ui_profession_cooking",
+    peche: "ui_profession_fishing",
+    inscription: "ui_profession_inscription",
+  };
+
+  function professionIconUrl(name) {
+    var key = String(name || "")
+      .toLowerCase()
+      .normalize("NFD").split("").filter(function (ch) {
+        var code = ch.charCodeAt(0);
+        return !(code >= 0x0300 && code <= 0x036f);
+      }).join("")
+      .trim();
+    var slug = PROFESSION_ICONS[key];
+    return slug ? "https://wow.zamimg.com/images/wow/icons/medium/" + slug + ".jpg" : null;
   }
 
   // filterExp absent/"overall" -> prof.base (total agrege toutes extensions,
   // comportement d'origine). Une extension precise -> somme des lignes de
   // prof.lines dont le .exp correspond ; un metier absent de cette extension
   // pour ce personnage est simplement omis (pas de faux "0/0").
+  // Tri/regroupement : metiers en cours d'abord (du moins au plus avance,
+  // ce qui merite le plus d'attention en tete), puis les metiers a 100%
+  // regroupes a part sous un sous-titre - retour utilisateur : le melange
+  // sans ordre n'etait pas lisible.
   function renderProfessions(professions, filterExp) {
-    var cards = [];
+    var entries = [];
     Object.keys(professions || {}).forEach(function (key) {
       var prof = professions[key];
       if (!prof || !prof.name) return;
@@ -818,20 +855,37 @@
         if (!found) return;
       }
       var pct = max ? Math.min(100, Math.round((cur / max) * 100)) : null;
-      cards.push(
+      entries.push({ name: prof.name, cur: cur, max: max, pct: pct });
+    });
+    if (entries.length === 0) {
+      return '<p class="dash-empty">Aucun metier suivi sur cette extension pour ce personnage.</p>';
+    }
+
+    function cardHtml(e) {
+      var icon = professionIconUrl(e.name);
+      var iconHtml = icon ? '<img class="prof-icon" src="' + icon + '" alt="" loading="lazy">' : "";
+      return (
         '<div class="prof-card">' +
-          '<div class="prof-head"><span class="prof-name">' + esc(prof.name) + "</span>" +
-          (pct != null ? '<span class="prof-pct">' + pct + "%</span>" : "") + "</div>" +
-          (pct != null
-            ? '<div class="prof-bar"><span style="width:' + pct + '%"></span></div><div class="prof-nums">' + fmtNum(cur) + " / " + fmtNum(max) + "</div>"
+          '<div class="prof-head">' + iconHtml + '<span class="prof-name">' + esc(e.name) + "</span>" +
+          (e.pct != null ? '<span class="prof-pct">' + e.pct + "%</span>" : "") + "</div>" +
+          (e.pct != null
+            ? '<div class="prof-bar"><span style="width:' + e.pct + '%"></span></div><div class="prof-nums">' + fmtNum(e.cur) + " / " + fmtNum(e.max) + "</div>"
             : '<div class="dash-note" style="margin-top:6px">Pas de progression suivie.</div>') +
         "</div>"
       );
-    });
-    if (cards.length === 0) {
-      return '<p class="dash-empty">Aucun metier suivi sur cette extension pour ce personnage.</p>';
     }
-    return '<div class="prof-grid">' + cards.join("") + "</div>";
+
+    var inProgress = entries.filter(function (e) { return e.pct == null || e.pct < 100; })
+      .sort(function (a, b) { return (a.pct == null ? -1 : a.pct) - (b.pct == null ? -1 : b.pct); });
+    var completed = entries.filter(function (e) { return e.pct === 100; });
+
+    var html = "";
+    if (inProgress.length) html += '<div class="prof-grid">' + inProgress.map(cardHtml).join("") + "</div>";
+    if (completed.length) {
+      html += '<div class="prof-section-title">Termines (' + completed.length + ")</div>";
+      html += '<div class="prof-grid">' + completed.map(cardHtml).join("") + "</div>";
+    }
+    return html;
   }
 
   // ==========================================================================
@@ -1072,7 +1126,6 @@
       var action = el.dataset.action;
       if (action === "range") { state.range = el.dataset.value; render(); }
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
-      else if (action === "prof-filter") { state.profFilter = el.dataset.value; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "remove-profile") {
         e.stopPropagation();
@@ -1099,11 +1152,15 @@
       el.click();
     });
     container.addEventListener("change", function (e) {
-      var el = e.target.closest('[data-action="compare-pick"]');
-      if (!el) return;
-      var slot = Number(el.dataset.slot);
-      state.compareIds[slot] = el.value;
-      render();
+      var pick = e.target.closest('[data-action="compare-pick"]');
+      if (pick) {
+        var slot = Number(pick.dataset.slot);
+        state.compareIds[slot] = pick.value;
+        render();
+        return;
+      }
+      var profFilter = e.target.closest('[data-action="prof-filter"]');
+      if (profFilter) { state.profFilter = profFilter.value; render(); }
     });
 
     return {
