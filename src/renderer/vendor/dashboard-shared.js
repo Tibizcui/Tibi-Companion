@@ -268,7 +268,7 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, dayCount: 0, activeDayCount: 0 };
+    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
       var d = days[k] || {};
@@ -279,6 +279,7 @@
       out.dungeons += d.dungeons || 0;
       out.mplusCount += (d.mplus && d.mplus.length) || 0;
       out.delves += d.delves || 0;
+      out.repGained += d.repGained || 0;
       out.dayCount++;
       if ((d.quests || d.played || d.dungeons)) out.activeDayCount++;
     });
@@ -453,8 +454,9 @@
     played: { label: "Temps joue", get: function (d) { return (d.played || 0) / 3600; }, fmt: function (v) { return fmtHours(v * 3600); }, fmtY: function (v) { return v.toFixed(0) + "h"; } },
     dungeons: { label: "Donjons & M+", get: function (d) { return (d.dungeons || 0) + ((d.mplus && d.mplus.length) || 0); }, fmt: fmtNum, fmtY: fmtNum },
     delves: { label: "Gouffres", get: function (d) { return d.delves || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    repGained: { label: "Reputation gagnee", get: function (d) { return d.repGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves"];
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "repGained"];
 
   function seriesForProfile(profile, metricKey, fromEd, toEd) {
     var metric = METRICS[metricKey];
@@ -527,11 +529,18 @@
     var pvpSub = (pvp && pvp.brackets && Object.keys(pvp.brackets).length) ? "" : "Aucune activite PVP classee cette saison.";
     var torghastSub = (t && (t.highestLayer != null || t.soulAsh != null || t.soulCinders != null)) ? "" : "Aucune donnee Tourments pour ce personnage.";
 
+    var repSummary = char && char.reputations && char.reputations.summary;
+    var repSub = (repSummary && repSummary.paragonReady) ? '<span style="color:var(--gold-soft);font-weight:700">' + repSummary.paragonReady + " caisse(s) paragon disponible(s)</span>"
+      : (repSummary && repSummary.tracked > 0 && repSummary.maxedCount === repSummary.tracked) ? '<span style="color:var(--gold-soft);font-weight:700">Toutes les factions suivies sont au maximum !</span>'
+      : (!repSummary || repSummary.tracked === 0) ? "Aucune reputation suivie pour ce personnage."
+      : "";
+
     return (
       '<div class="stats-tiles">' +
         tileHtml("Gouffres", [["Total", fmtNum(delveTotal)], ["Palier", (char && char.delveHighestTier != null) ? char.delveHighestTier : "-"], ["Compagnon", (char && char.delveCompanionLevel != null) ? char.delveCompanionLevel : "-"]], delveSub) +
         tileHtml("PVP", [["Tues", fmtNum(pvp && pvp.honorableKills || 0)], ["Honneur", fmtNum(pvp && pvp.honor || 0)], ["Conquete", fmtNum(pvp && pvp.conquest || 0)]], pvpSub) +
         tileHtml("Tourments", [["Palier", (t && t.highestLayer != null) ? t.highestLayer : "-"], ["Cendres", fmtNum(t && t.soulAsh || 0)], ["Noires", fmtNum(t && t.soulCinders || 0)]], torghastSub) +
+        tileHtml("Reputations", [["Suivies", fmtNum(repSummary && repSummary.tracked || 0)], ["Rang max", (repSummary && repSummary.highestRenownRank != null) ? repSummary.highestRenownRank : "-"], ["Exaltees", fmtNum(repSummary && repSummary.maxedCount || 0)]], repSub) +
       "</div>"
     );
   }
@@ -596,7 +605,7 @@
         return [[esc(n)], [esc(e.count || 0), "num"], ['<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestTier || 0) + "</span>", "num"]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Detail par gouffre", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
+    return '<div class="stats-detail">' + tableHtml("Gouffre", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
   }
 
   // Difficulte "Tourment" appliquee a des donjons classiques (haut fait
@@ -621,7 +630,33 @@
         return [[esc(n)], [esc(e.count || 0), "num"], [echelonHtml, "num"], [achHtml]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Detail par Tourment", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
+    return '<div class="stats-detail">' + tableHtml("Tourments - La tour des damnes", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
+  }
+
+  function repSystemLabel(info) {
+    if (info.system === "renown") return "Renom " + (info.rank || 0);
+    if (info.system === "friendship" || info.system === "classic") return info.label || "";
+    return "";
+  }
+
+  function renderReputationDetail(char) {
+    var list = char && char.reputations && char.reputations.list;
+    var rows = [];
+    if (list) {
+      // Uniquement les factions avec une progression RECENTE constatee
+      // (lastGainAt present) - pas un tri par % avec repli, un vrai filtre :
+      // les factions jamais touchees depuis que ce suivi existe n'apparaissent
+      // pas du tout (demande explicite : les 10 dernieres reputations sur
+      // lesquelles le joueur a fait progresser la completion recemment).
+      var recent = list.filter(function (info) { return !info.maxed && info.lastGainAt; });
+      var sorted = recent.slice().sort(function (a, b) { return b.lastGainAt - a.lastGainAt; }).slice(0, 10);
+      rows = sorted.map(function (info) {
+        var pctText = Math.round((info.pct || 0) * 100) + "%";
+        var progressHtml = '<span style="color:var(--gold-soft);font-weight:700">' + esc(pctText) + "</span>";
+        return [[esc(info.name || "?")], [esc(repSystemLabel(info))], [progressHtml, "num"]];
+      });
+    }
+    return '<div class="stats-detail">' + tableHtml("Reputation", [["Nom"], ["Systeme"], ["Progression", "num"]], rows, "Aucune progression de reputation recente.") + "</div>";
   }
 
   function deltaBadge(cur, prev) {
@@ -656,6 +691,7 @@
       { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
       { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
+      { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
     ];
 
     return (
@@ -965,6 +1001,7 @@
       html += renderPvpDetail(active.char);
       html += renderDelveDetail(active.char);
       html += renderTorghastDungeonDetail(active.char);
+      html += renderReputationDetail(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
