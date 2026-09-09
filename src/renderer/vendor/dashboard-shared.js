@@ -556,7 +556,7 @@
   function tableHtml(title, headers, rows, noDataText) {
     if (!rows.length) return '<p class="kpi-sub" style="margin:0 0 18px">' + esc(noDataText) + "</p>";
     return (
-      '<div class="stats-table-title">' + esc(title) + "</div>" +
+      (title ? '<div class="stats-table-title">' + esc(title) + "</div>" : "") +
       '<table class="stats-table"><thead><tr>' +
         headers.map(function (h) { return '<th class="' + (h[1] || "") + '">' + esc(h[0]) + "</th>"; }).join("") +
       "</tr></thead><tbody>" +
@@ -613,7 +613,7 @@
         return [[esc(n)], [esc(e.count || 0), "num"], ['<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestTier || 0) + "</span>", "num"]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Gouffre", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
+    return '<div class="stats-detail"><div class="stats-detail-title">Gouffre</div>' + tableHtml("", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
   }
 
   // Difficulte "Tourment" appliquee a des donjons classiques (haut fait
@@ -638,7 +638,7 @@
         return [[esc(n)], [esc(e.count || 0), "num"], [echelonHtml, "num"], [achHtml]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Tourments - La tour des damnes", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
+    return '<div class="stats-detail"><div class="stats-detail-title">Tourments - La tour des damnes</div>' + tableHtml("", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
   }
 
   function repSystemLabel(info) {
@@ -664,7 +664,7 @@
         return [[esc(info.name || "?")], [esc(repSystemLabel(info))], [progressHtml, "num"]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Reputation", [["Nom"], ["Systeme"], ["Progression", "num"]], rows, "Aucune progression de reputation recente.") + "</div>";
+    return '<div class="stats-detail"><div class="stats-detail-title">Reputation</div>' + tableHtml("", [["Nom"], ["Systeme"], ["Progression", "num"]], rows, "Aucune progression de reputation recente.") + "</div>";
   }
 
   // Metiers suivis nativement par Stats (char.professionsNative, distinct
@@ -685,7 +685,7 @@
         return [[esc(info.name || "?")], [esc(levelText)], [progressHtml, "num"]];
       });
     }
-    return '<div class="stats-detail">' + tableHtml("Metiers", [["Nom"], ["Niveau"], ["Progression", "num"]], rows, "Aucune progression de metier recente.") + "</div>";
+    return '<div class="stats-detail"><div class="stats-detail-title">Metiers</div>' + tableHtml("", [["Nom"], ["Niveau"], ["Progression", "num"]], rows, "Aucune progression de metier recente.") + "</div>";
   }
 
   function deltaBadge(cur, prev) {
