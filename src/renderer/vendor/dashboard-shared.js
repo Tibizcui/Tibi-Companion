@@ -268,7 +268,8 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0, dayCount: 0, activeDayCount: 0 };
+    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0,
+      bgPlayedGained: 0, bgWonGained: 0, arenaPlayedGained: 0, arenaWonGained: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
       var d = days[k] || {};
@@ -282,6 +283,10 @@
       out.repGained += d.repGained || 0;
       out.pvpKillsGained += d.pvpKillsGained || 0;
       out.profGained += d.profGained || 0;
+      out.bgPlayedGained += d.bgPlayedGained || 0;
+      out.bgWonGained += d.bgWonGained || 0;
+      out.arenaPlayedGained += d.arenaPlayedGained || 0;
+      out.arenaWonGained += d.arenaWonGained || 0;
       out.dayCount++;
       if ((d.quests || d.played || d.dungeons)) out.activeDayCount++;
     });
@@ -457,19 +462,32 @@
     dungeons: { label: "Donjons & M+", get: function (d) { return (d.dungeons || 0) + ((d.mplus && d.mplus.length) || 0); }, fmt: fmtNum, fmtY: fmtNum },
     delves: { label: "Gouffres", get: function (d) { return d.delves || 0; }, fmt: fmtNum, fmtY: fmtNum },
     repGained: { label: "Reputation gagnee", get: function (d) { return d.repGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
-    pvpKillsGained: { label: "Adversaires tues", get: function (d) { return d.pvpKillsGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     profGained: { label: "Points de metier gagnes", get: function (d) { return d.profGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    pvpKillsGained: { label: "Adversaires tues", get: function (d) { return d.pvpKillsGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    bgPlayedGained: { label: "Champs de bataille joues", get: function (d) { return d.bgPlayedGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    bgWonGained: { label: "Champs de bataille gagnes", get: function (d) { return d.bgWonGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    arenaPlayedGained: { label: "Arenes jouees", get: function (d) { return d.arenaPlayedGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
+    arenaWonGained: { label: "Arenes gagnees", get: function (d) { return d.arenaWonGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
   // Ordre : stats generales d'abord, puis une metrique par categorie dans le
-  // meme ordre que les tuiles resume (Gouffres/PVP/Tourments/Reputations/Metiers).
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "repGained", "profGained"];
+  // meme ordre que les tuiles resume (Gouffres/Tourments/Reputations/Metiers).
+  // PVP (adversaires tues/champs de bataille/arenes) vit dans son propre
+  // graphique dedie (PVP_METRIC_ORDER plus bas), pas ici.
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "repGained", "profGained"];
 
-  // Couleurs fixes pour la superposition multi-metriques du graphique
-  // Evolution (mode "overlay") - une couleur distincte par metrique, alignee
-  // sur METRIC_ORDER, choisies pour rester lisibles sur le fond graphite.
+  // Graphique PVP dedie : toujours superpose (pas de mode une-seule-metrique,
+  // 5 courbes restent lisibles).
+  var PVP_METRIC_ORDER = ["pvpKillsGained", "bgPlayedGained", "bgWonGained", "arenaPlayedGained", "arenaWonGained"];
+
+  // Couleurs fixes pour la superposition multi-metriques (Evolution ET
+  // graphique PVP) - une couleur distincte par metrique, choisies pour
+  // rester lisibles sur le fond graphite. Memes teintes que l'addon Stats
+  // (UI.lua, OVERLAY_COLORS / PVP_OVERLAY_COLORS).
   var OVERLAY_COLORS = {
     quests: "#4fd1c5", gold: "#f4d68a", played: "#7c9eff", dungeons: "#ff8a8a",
-    delves: "#b389f4", pvpKillsGained: "#ff6ec7", repGained: "#6ee7b7", profGained: "#ffb454",
+    delves: "#b389f4", repGained: "#6ee7b7", profGained: "#ffb454",
+    pvpKillsGained: "#ff6ec7", bgPlayedGained: "#7c9eff", bgWonGained: "#6ee7b7",
+    arenaPlayedGained: "#ffb454", arenaWonGained: "#b389f4",
   };
 
   // Normalise une serie {ed,v,label} sur 0-100 (min-max de la serie elle-meme)
@@ -533,8 +551,8 @@
   // Une serie par metrique de METRIC_ORDER, normalisee 0-100 (cf.
   // normalizeSeries) pour rester comparable malgre des echelles tres
   // differentes (quetes ~100, or ~milliers, temps joue en heures...).
-  function overlaySeriesForProfile(profile, granularity, fromEd, toEd) {
-    return METRIC_ORDER.map(function (key) {
+  function overlaySeriesForProfile(profile, granularity, fromEd, toEd, metricOrder) {
+    return (metricOrder || METRIC_ORDER).map(function (key) {
       var pts = bucketSeries(seriesForProfile(profile, key, fromEd, toEd), granularity);
       return { id: key, label: METRICS[key].label, color: OVERLAY_COLORS[key] || "#e4b64a", fmt: METRICS[key].fmt, points: normalizeSeries(pts) };
     });
@@ -787,7 +805,6 @@
       { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
       { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
-      { key: "pvpKillsGained", label: "Adversaires tues", value: fmtNum(t.pvpKillsGained), cur: t.pvpKillsGained, prev: p ? p.pvpKillsGained : null, metric: "pvpKillsGained" },
       { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
       { key: "profGained", label: "Points de metier gagnes", value: fmtNum(t.profGained), cur: t.profGained, prev: p ? p.profGained : null, metric: "profGained" },
     ];
@@ -1043,11 +1060,12 @@
   }
 
   var GRANULARITY_OPTS = [["day", "Jour"], ["week", "Semaine"], ["month", "Mois"], ["year", "Annee"]];
-  function granularitySelectorHtml(granularity) {
+  function granularitySelectorHtml(granularity, action) {
+    action = action || "granularity";
     return (
       '<div class="filter-buttons bi-granularity" role="group" aria-label="Granularite du graphique">' +
       GRANULARITY_OPTS.map(function (o) {
-        return '<button type="button" class="filter-btn' + (granularity === o[0] ? " active" : "") + '" data-action="granularity" data-value="' + o[0] + '" aria-pressed="' + (granularity === o[0]) + '">' + o[1] + "</button>";
+        return '<button type="button" class="filter-btn' + (granularity === o[0] ? " active" : "") + '" data-action="' + action + '" data-value="' + o[0] + '" aria-pressed="' + (granularity === o[0]) + '">' + o[1] + "</button>";
       }).join("") + "</div>"
     );
   }
@@ -1094,6 +1112,7 @@
       metric: "quests",
       granularity: "day",
       overlay: false,
+      pvpGranularity: "day",
       sort: { key: "date", dir: "desc" },
       profFilter: "overall",
     };
@@ -1164,6 +1183,10 @@
             [{ id: active.id, label: active.char.name, color: classColor(active.char.class), points: bucketSeries(seriesForProfile(active, state.metric, win.from, win.to), state.granularity) }],
             { ariaLabel: "Evolution de " + METRICS[state.metric].label + " pour " + active.char.name, fmtY: METRICS[state.metric].fmtY, fmt: METRICS[state.metric].fmt, uid: uid }
           );
+      var pvpChart = buildLineChart(
+        overlaySeriesForProfile(active, state.pvpGranularity, win.from, win.to, PVP_METRIC_ORDER),
+        { ariaLabel: "PVP dans le temps pour " + active.char.name, fmtY: function (v) { return Math.round(v) + "%"; }, noArea: true, uid: uid + 1000 }
+      );
 
       var html = "";
       html += toolbar;
@@ -1182,6 +1205,8 @@
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' +
         (state.overlay ? "" : metricSelectorHtml(state.metric)) + "</div>" +
         '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.granularity) + overlayToggleHtml(state.overlay) + "</div>" + chart.html + "</div>";
+      html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">PVP dans le temps</h3></div>' +
+        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.pvpGranularity, "pvp-granularity") + "</div>" + pvpChart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
       if (hasProfessions) {
@@ -1196,7 +1221,7 @@
       html += "</div>";
 
       container.innerHTML = html;
-      attachChartInteractivity([chart]);
+      attachChartInteractivity([chart, pvpChart]);
     }
 
     // `charts` : resultats de buildLineChart() de CE cycle de rendu, dans le
@@ -1245,6 +1270,7 @@
       if (action === "range") { state.range = el.dataset.value; render(); }
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
       else if (action === "granularity") { state.granularity = el.dataset.value; render(); }
+      else if (action === "pvp-granularity") { state.pvpGranularity = el.dataset.value; render(); }
       else if (action === "overlay") { state.overlay = !state.overlay; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "remove-profile") {
