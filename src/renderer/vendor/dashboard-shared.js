@@ -576,7 +576,10 @@
         '<span class="dash-banner-name" style="color:' + color + '">' + esc(char.name || "?") + "</span> " +
         (char.ilvl ? '<span class="dash-banner-ilvl">[' + esc(char.ilvl) + "]</span> " : "") +
         (tail ? '<span class="dash-banner-tail">&mdash; ' + tail + "</span>" : "") +
-        (char.achievementPoints != null ? '<span class="dash-banner-tail"> - ' + esc(fmtNum(char.achievementPoints)) + " points de hauts faits</span>" : "") +
+        (char.achievementPoints != null
+          ? '<span class="dash-banner-tail"> - <img class="dash-achiev-icon" src="https://wow.zamimg.com/images/wow/icons/medium/achievement_general.jpg" alt="" loading="lazy"> '
+            + esc(fmtNum(char.achievementPoints)) + " points de hauts faits</span>"
+          : "") +
       "</div>"
     );
   }

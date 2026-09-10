@@ -416,6 +416,15 @@ a{color:inherit}
 .gallery-thumb.active img,.gallery-thumb:hover img{opacity:1}
 .gallery-caption{text-align:center;font-size:.78rem;color:var(--muted);min-height:1.2em}
 
+/* -- Galerie Tibi Companion (page dediee) : captures larges, pas de recadrage
+   16/9 comme .gallery-main - hauteur naturelle pour ne rien perdre du contenu -- */
+.companion-shots{display:grid;grid-template-columns:repeat(2,1fr);gap:24px;margin:32px 0 8px}
+.companion-shot{margin:0;background:var(--graphite-2);border:1px solid var(--line);
+  border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-soft)}
+.companion-shot img{width:100%;height:auto;display:block}
+.companion-shot figcaption{padding:12px 16px;font-size:.85rem;color:var(--muted);text-align:center}
+@media (max-width:760px){.companion-shots{grid-template-columns:1fr}}
+
 .showcase-import{display:flex;flex-direction:column;gap:18px;min-width:0}
 .showcase-import h3{font-size:clamp(1.8rem,3.4vw,2.8rem);font-weight:900;line-height:1.05;
   letter-spacing:-.035em;margin:6px 0 0}
@@ -735,6 +744,7 @@ a{color:inherit}
 .dash-banner--compact{font-size:1rem}
 .dash-banner-level{color:var(--gold)}
 .dash-banner-ilvl,.dash-banner-tail{color:var(--muted);font-weight:500;font-size:.95rem}
+.dash-achiev-icon{width:16px;height:16px;border-radius:3px;vertical-align:-3px}
 .bi-period{color:var(--muted);font-size:.85rem;margin:0 0 22px}
 .bi-period strong{color:var(--text)}
 
