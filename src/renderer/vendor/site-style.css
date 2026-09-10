@@ -826,6 +826,8 @@ a{color:inherit}
 .bi-chart-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius);
   padding:22px;margin:0 0 30px}
 .bi-chart-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px}
+.bi-chart-subhead{margin:-6px 0 16px}
+.bi-granularity .filter-btn{padding:6px 13px;font-size:.82rem}
 .bi-chart-wrap{position:relative}
 svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 .chart-grid{stroke:var(--line);stroke-width:1}

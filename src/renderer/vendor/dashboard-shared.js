@@ -404,7 +404,7 @@
     var seriesSvg = series.map(function (s, si) {
       var pts = s.points.slice().sort(function (a, b) { return a.ed - b.ed; }).map(function (p) {
         var x = xOf(p.ed), y = yOf(p.v);
-        if (!hit[p.ed]) hit[p.ed] = { ed: p.ed, x: x, rows: [] };
+        if (!hit[p.ed]) hit[p.ed] = { ed: p.ed, x: x, rows: [], dateLabel: p.label || null };
         hit[p.ed].rows.push({ id: s.id, y: y, v: p.v, color: s.color, label: s.label });
         return { x: x, y: y };
       });
@@ -469,6 +469,43 @@
     var days = sliceDays(profile.days, fromEd, toEd);
     var keys = Object.keys(days).sort();
     return keys.map(function (k) { return { ed: isoToEpochDay(k), v: metric.get(days[k] || {}) }; }).filter(function (p) { return p.ed != null; });
+  }
+
+  // Regroupe des points quotidiens {ed,v} en semaine/mois/annee (somme des
+  // valeurs, meme logique que SX.BuildSeries cote addon - Stats/Core.lua).
+  // Semaine calendaire debut lundi (miroir de SX.StartOfWeek).
+  function bucketAnchorEd(ed, granularity) {
+    var d = new Date(ed * 86400000);
+    if (granularity === "week") {
+      var dow = d.getUTCDay(); // 0=dimanche..6=samedi
+      var diffToMonday = (dow === 0) ? 6 : (dow - 1);
+      return ed - diffToMonday;
+    }
+    if (granularity === "month") return Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1) / 86400000);
+    if (granularity === "year") return Math.floor(Date.UTC(d.getUTCFullYear(), 0, 1) / 86400000);
+    return ed;
+  }
+
+  function bucketLabel(anchorEd, granularity, long) {
+    var d = new Date(anchorEd * 86400000);
+    if (granularity === "week") return (long ? "Semaine du " : "") + d.getUTCDate() + " " + MONTHS_FR[d.getUTCMonth()];
+    if (granularity === "month") {
+      var name = MONTHS_FR[d.getUTCMonth()];
+      return name.charAt(0).toUpperCase() + name.slice(1) + " " + d.getUTCFullYear();
+    }
+    if (granularity === "year") return String(d.getUTCFullYear());
+    return fmtDateLong(epochDayToIso(anchorEd));
+  }
+
+  function bucketSeries(points, granularity) {
+    if (!granularity || granularity === "day") return points;
+    var buckets = {}, order = [];
+    points.forEach(function (p) {
+      var anchor = bucketAnchorEd(p.ed, granularity);
+      if (!buckets[anchor]) { buckets[anchor] = { ed: anchor, v: 0, label: bucketLabel(anchor, granularity, true) }; order.push(anchor); }
+      buckets[anchor].v += p.v;
+    });
+    return order.sort(function (a, b) { return a - b; }).map(function (ed) { return buckets[ed]; });
   }
 
   // ==========================================================================
@@ -973,6 +1010,16 @@
     );
   }
 
+  var GRANULARITY_OPTS = [["day", "Jour"], ["week", "Semaine"], ["month", "Mois"], ["year", "Annee"]];
+  function granularitySelectorHtml(granularity) {
+    return (
+      '<div class="filter-buttons bi-granularity" role="group" aria-label="Granularite du graphique">' +
+      GRANULARITY_OPTS.map(function (o) {
+        return '<button type="button" class="filter-btn' + (granularity === o[0] ? " active" : "") + '" data-action="granularity" data-value="' + o[0] + '" aria-pressed="' + (granularity === o[0]) + '">' + o[1] + "</button>";
+      }).join("") + "</div>"
+    );
+  }
+
   function profileChipsHtml(profiles, activeId, fixed) {
     if (profiles.length <= 1 && fixed) return "";
     return (
@@ -1006,6 +1053,7 @@
       compareMode: false,
       range: "30",
       metric: "quests",
+      granularity: "day",
       sort: { key: "date", dir: "desc" },
       profFilter: "overall",
     };
@@ -1068,7 +1116,7 @@
 
       var kpis = renderKpis(active, win);
       var chart = buildLineChart(
-        [{ id: active.id, label: active.char.name, color: classColor(active.char.class), points: seriesForProfile(active, state.metric, win.from, win.to) }],
+        [{ id: active.id, label: active.char.name, color: classColor(active.char.class), points: bucketSeries(seriesForProfile(active, state.metric, win.from, win.to), state.granularity) }],
         { ariaLabel: "Evolution de " + METRICS[state.metric].label + " pour " + active.char.name, fmtY: METRICS[state.metric].fmtY, fmt: METRICS[state.metric].fmt, uid: uid }
       );
 
@@ -1086,7 +1134,8 @@
       html += renderTorghastDungeonDetail(active.char);
       html += renderReputationDetail(active.char);
       html += renderProfessionDetail(active.char);
-      html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" + chart.html + "</div>";
+      html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" +
+        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.granularity) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
       if (hasProfessions) {
@@ -1129,7 +1178,7 @@
           var rows = nearest.rows.map(function (row) {
             return '<div class="chart-tooltip-row"><i style="background:' + row.color + '"></i>' + esc(row.label) + ": <strong>" + esc(entry.fmt(row.v)) + "</strong></div>";
           }).join("");
-          tooltip.innerHTML = '<div class="chart-tooltip-date">' + esc(fmtDateLong(epochDayToIso(nearest.ed))) + "</div>" + rows;
+          tooltip.innerHTML = '<div class="chart-tooltip-date">' + esc(nearest.dateLabel || fmtDateLong(epochDayToIso(nearest.ed))) + "</div>" + rows;
           tooltip.removeAttribute("hidden");
           var leftPct = (nearest.x / vb.width) * 100;
           tooltip.style.left = leftPct + "%";
@@ -1148,6 +1197,7 @@
       var action = el.dataset.action;
       if (action === "range") { state.range = el.dataset.value; render(); }
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
+      else if (action === "granularity") { state.granularity = el.dataset.value; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "remove-profile") {
         e.stopPropagation();
