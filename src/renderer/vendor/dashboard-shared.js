@@ -499,8 +499,12 @@
     var vals = points.map(function (p) { return p.v; });
     var minV = Math.min.apply(null, vals), maxV = Math.max.apply(null, vals);
     var span = maxV - minV;
+    // Serie plate (aucune variation sur la periode, cas courant : 0 activite
+    // tous les jours) -> 0%, pas 50% - une ligne a 50% donnerait l'impression
+    // trompeuse d'etre a mi-chemin de quelque chose alors qu'il n'y a
+    // litteralement rien a etaler entre un min et un max identiques.
     return points.map(function (p) {
-      return { ed: p.ed, label: p.label, actual: p.v, v: span ? ((p.v - minV) / span) * 100 : 50 };
+      return { ed: p.ed, label: p.label, actual: p.v, v: span ? ((p.v - minV) / span) * 100 : 0 };
     });
   }
 
