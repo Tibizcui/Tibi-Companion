@@ -6,7 +6,26 @@
   --accent-soft: rgba(196, 31, 59, 0.18);
 }
 
+/* La fenetre Electron est redimensionnable par l'utilisateur (minWidth 860,
+   voir main.js) : contrairement au site vitrine (overflow-x:hidden voulu la-
+   bas pour les elements decoratifs qui debordent), ici il faut soit laisser
+   le contenu se reajuster, soit permettre de scroller horizontalement plutot
+   que de couper silencieusement ce qui deborde. On surcharge les regles du
+   fichier vendu (meme specificite, applique apres dans l'ordre du <link>). */
+html, body { overflow-x: auto; }
 body { overflow-y: auto; }
+
+/* Poignee de scroll fine et themee (Electron = Chromium, -webkit-scrollbar
+   fonctionne) au lieu de la scrollbar systeme brute. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong, rgba(255, 255, 255, 0.14));
+  border-radius: 10px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: padding-box; }
 
 .app-shell {
   display: flex;
@@ -16,8 +35,9 @@ body { overflow-y: auto; }
 
 .app-topbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 14px;
+  gap: 10px 14px;
   padding: 12px 20px;
   background: var(--graphite-2);
   border-bottom: 1px solid var(--line);
