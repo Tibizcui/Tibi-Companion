@@ -405,15 +405,15 @@
       var pts = s.points.slice().sort(function (a, b) { return a.ed - b.ed; }).map(function (p) {
         var x = xOf(p.ed), y = yOf(p.v);
         if (!hit[p.ed]) hit[p.ed] = { ed: p.ed, x: x, rows: [], dateLabel: p.label || null };
-        hit[p.ed].rows.push({ id: s.id, y: y, v: p.v, color: s.color, label: s.label });
+        hit[p.ed].rows.push({ id: s.id, y: y, v: p.v, actual: p.actual, fmt: s.fmt, color: s.color, label: s.label });
         return { x: x, y: y };
       });
       var path = catmullRomPath(pts);
       var areaId = "areaGrad" + si + "_" + (opts.uid || 0);
-      var area = si === 0
+      var area = (si === 0 && !opts.noArea)
         ? '<path d="' + path + " L" + xOf(maxEd) + "," + (padT + innerH) + " L" + xOf(minEd) + "," + (padT + innerH) + ' Z" fill="url(#' + areaId + ')" stroke="none"/>'
         : "";
-      var grad = si === 0
+      var grad = (si === 0 && !opts.noArea)
         ? '<linearGradient id="' + areaId + '" x1="0" y1="0" x2="0" y2="1">' +
           '<stop offset="0%" stop-color="' + s.color + '" stop-opacity="0.32"/>' +
           '<stop offset="100%" stop-color="' + s.color + '" stop-opacity="0"/>' +
@@ -464,6 +464,28 @@
   // meme ordre que les tuiles resume (Gouffres/PVP/Tourments/Reputations/Metiers).
   var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "repGained", "profGained"];
 
+  // Couleurs fixes pour la superposition multi-metriques du graphique
+  // Evolution (mode "overlay") - une couleur distincte par metrique, alignee
+  // sur METRIC_ORDER, choisies pour rester lisibles sur le fond graphite.
+  var OVERLAY_COLORS = {
+    quests: "#4fd1c5", gold: "#f4d68a", played: "#7c9eff", dungeons: "#ff8a8a",
+    delves: "#b389f4", pvpKillsGained: "#ff6ec7", repGained: "#6ee7b7", profGained: "#ffb454",
+  };
+
+  // Normalise une serie {ed,v,label} sur 0-100 (min-max de la serie elle-meme)
+  // pour rendre des metriques d'echelles tres differentes (quetes ~100,
+  // or ~milliers, temps joue en heures...) comparables visuellement sur un
+  // meme axe Y. La valeur reelle est conservee dans `actual` pour l'infobulle.
+  function normalizeSeries(points) {
+    if (!points.length) return points;
+    var vals = points.map(function (p) { return p.v; });
+    var minV = Math.min.apply(null, vals), maxV = Math.max.apply(null, vals);
+    var span = maxV - minV;
+    return points.map(function (p) {
+      return { ed: p.ed, label: p.label, actual: p.v, v: span ? ((p.v - minV) / span) * 100 : 50 };
+    });
+  }
+
   function seriesForProfile(profile, metricKey, fromEd, toEd) {
     var metric = METRICS[metricKey];
     var days = sliceDays(profile.days, fromEd, toEd);
@@ -506,6 +528,16 @@
       buckets[anchor].v += p.v;
     });
     return order.sort(function (a, b) { return a - b; }).map(function (ed) { return buckets[ed]; });
+  }
+
+  // Une serie par metrique de METRIC_ORDER, normalisee 0-100 (cf.
+  // normalizeSeries) pour rester comparable malgre des echelles tres
+  // differentes (quetes ~100, or ~milliers, temps joue en heures...).
+  function overlaySeriesForProfile(profile, granularity, fromEd, toEd) {
+    return METRIC_ORDER.map(function (key) {
+      var pts = bucketSeries(seriesForProfile(profile, key, fromEd, toEd), granularity);
+      return { id: key, label: METRICS[key].label, color: OVERLAY_COLORS[key] || "#e4b64a", fmt: METRICS[key].fmt, points: normalizeSeries(pts) };
+    });
   }
 
   // ==========================================================================
@@ -1020,6 +1052,13 @@
     );
   }
 
+  function overlayToggleHtml(active) {
+    return (
+      '<button type="button" class="btn ghost small bi-overlay-toggle' + (active ? " active" : "") + '" data-action="overlay" aria-pressed="' + active + '">' +
+      (active ? "Revenir a une seule metrique" : "Superposer toutes les metriques") + "</button>"
+    );
+  }
+
   function profileChipsHtml(profiles, activeId, fixed) {
     if (profiles.length <= 1 && fixed) return "";
     return (
@@ -1054,6 +1093,7 @@
       range: "30",
       metric: "quests",
       granularity: "day",
+      overlay: false,
       sort: { key: "date", dir: "desc" },
       profFilter: "overall",
     };
@@ -1115,10 +1155,15 @@
         : "";
 
       var kpis = renderKpis(active, win);
-      var chart = buildLineChart(
-        [{ id: active.id, label: active.char.name, color: classColor(active.char.class), points: bucketSeries(seriesForProfile(active, state.metric, win.from, win.to), state.granularity) }],
-        { ariaLabel: "Evolution de " + METRICS[state.metric].label + " pour " + active.char.name, fmtY: METRICS[state.metric].fmtY, fmt: METRICS[state.metric].fmt, uid: uid }
-      );
+      var chart = state.overlay
+        ? buildLineChart(
+            overlaySeriesForProfile(active, state.granularity, win.from, win.to),
+            { ariaLabel: "Evolution de toutes les metriques pour " + active.char.name, fmtY: function (v) { return Math.round(v) + "%"; }, noArea: true, uid: uid }
+          )
+        : buildLineChart(
+            [{ id: active.id, label: active.char.name, color: classColor(active.char.class), points: bucketSeries(seriesForProfile(active, state.metric, win.from, win.to), state.granularity) }],
+            { ariaLabel: "Evolution de " + METRICS[state.metric].label + " pour " + active.char.name, fmtY: METRICS[state.metric].fmtY, fmt: METRICS[state.metric].fmt, uid: uid }
+          );
 
       var html = "";
       html += toolbar;
@@ -1134,8 +1179,9 @@
       html += renderTorghastDungeonDetail(active.char);
       html += renderReputationDetail(active.char);
       html += renderProfessionDetail(active.char);
-      html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' + metricSelectorHtml(state.metric) + "</div>" +
-        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.granularity) + "</div>" + chart.html + "</div>";
+      html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' +
+        (state.overlay ? "" : metricSelectorHtml(state.metric)) + "</div>" +
+        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.granularity) + overlayToggleHtml(state.overlay) + "</div>" + chart.html + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
       if (hasProfessions) {
@@ -1176,7 +1222,8 @@
           cursorG.removeAttribute("hidden");
           cursorLine.setAttribute("x1", nearest.x); cursorLine.setAttribute("x2", nearest.x);
           var rows = nearest.rows.map(function (row) {
-            return '<div class="chart-tooltip-row"><i style="background:' + row.color + '"></i>' + esc(row.label) + ": <strong>" + esc(entry.fmt(row.v)) + "</strong></div>";
+            var val = row.fmt ? row.fmt(row.actual) : entry.fmt(row.v);
+            return '<div class="chart-tooltip-row"><i style="background:' + row.color + '"></i>' + esc(row.label) + ": <strong>" + esc(val) + "</strong></div>";
           }).join("");
           tooltip.innerHTML = '<div class="chart-tooltip-date">' + esc(nearest.dateLabel || fmtDateLong(epochDayToIso(nearest.ed))) + "</div>" + rows;
           tooltip.removeAttribute("hidden");
@@ -1198,6 +1245,7 @@
       if (action === "range") { state.range = el.dataset.value; render(); }
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
       else if (action === "granularity") { state.granularity = el.dataset.value; render(); }
+      else if (action === "overlay") { state.overlay = !state.overlay; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "remove-profile") {
         e.stopPropagation();
