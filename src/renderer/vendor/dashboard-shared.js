@@ -268,7 +268,7 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, soulAshGained: 0, profGained: 0, dayCount: 0, activeDayCount: 0 };
+    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
       var d = days[k] || {};
@@ -281,7 +281,6 @@
       out.delves += d.delves || 0;
       out.repGained += d.repGained || 0;
       out.pvpKillsGained += d.pvpKillsGained || 0;
-      out.soulAshGained += d.soulAshGained || 0;
       out.profGained += d.profGained || 0;
       out.dayCount++;
       if ((d.quests || d.played || d.dungeons)) out.activeDayCount++;
@@ -459,12 +458,11 @@
     delves: { label: "Gouffres", get: function (d) { return d.delves || 0; }, fmt: fmtNum, fmtY: fmtNum },
     repGained: { label: "Reputation gagnee", get: function (d) { return d.repGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     pvpKillsGained: { label: "Adversaires tues", get: function (d) { return d.pvpKillsGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
-    soulAshGained: { label: "Cendres d'ame gagnees", get: function (d) { return d.soulAshGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     profGained: { label: "Points de metier gagnes", get: function (d) { return d.profGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
   // Ordre : stats generales d'abord, puis une metrique par categorie dans le
   // meme ordre que les tuiles resume (Gouffres/PVP/Tourments/Reputations/Metiers).
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "soulAshGained", "repGained", "profGained"];
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "pvpKillsGained", "repGained", "profGained"];
 
   function seriesForProfile(profile, metricKey, fromEd, toEd) {
     var metric = METRICS[metricKey];
@@ -721,7 +719,6 @@
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
       { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
       { key: "pvpKillsGained", label: "Adversaires tues", value: fmtNum(t.pvpKillsGained), cur: t.pvpKillsGained, prev: p ? p.pvpKillsGained : null, metric: "pvpKillsGained" },
-      { key: "soulAshGained", label: "Cendres d'ame gagnees", value: fmtNum(t.soulAshGained), cur: t.soulAshGained, prev: p ? p.soulAshGained : null, metric: "soulAshGained" },
       { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
       { key: "profGained", label: "Points de metier gagnes", value: fmtNum(t.profGained), cur: t.profGained, prev: p ? p.profGained : null, metric: "profGained" },
     ];
