@@ -857,6 +857,17 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 .chart-legend-item{display:inline-flex;align-items:center;gap:7px;font-size:.8rem;color:var(--muted);font-weight:700}
 .chart-legend-item i{width:9px;height:9px;border-radius:50%}
 
+/* -- Legende cliquable (superposition/PVP) : bouton-pastille par metrique,
+   couleur pleine si visible, grise si masquee via clic. -- */
+.bi-legend-hint{margin:14px 0 8px}
+.bi-legend-toggle{margin:0 0 4px}
+.bi-legend-btn{display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:6px 12px;
+  border-radius:999px;border:1px solid var(--line);background:var(--graphite-3);
+  color:var(--muted);font-weight:700;font-size:.78rem;font-family:inherit;transition:.2s}
+.bi-legend-btn i{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.bi-legend-btn:hover{border-color:var(--line-strong)}
+.bi-legend-btn.on{color:var(--text);border-color:var(--line-strong)}
+
 /* -- Colonnes (metiers + historique) -- */
 .bi-columns{display:grid;grid-template-columns:1fr 1.6fr;gap:26px;align-items:start}
 .bi-col{min-width:0}

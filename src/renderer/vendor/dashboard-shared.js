@@ -1084,6 +1084,27 @@
     );
   }
 
+  // Legende cliquable des graphiques superposes (Evolution en mode overlay,
+  // PVP dans le temps) : chaque metrique se cache/montre individuellement -
+  // trop de courbes superposees reste illisible quelle que soit la
+  // granularite, laisser choisir lesquelles afficher regle le probleme a
+  // la racine plutot que d'ajuster le rendu davantage.
+  function metricLegendToggleHtml(metricOrder, colorsMap, stateTable, action) {
+    return (
+      '<div class="filter-buttons bi-legend-toggle" role="group" aria-label="Courbes affichees">' +
+      metricOrder.map(function (key) {
+        var enabled = stateTable[key] !== false;
+        var color = colorsMap[key] || "#e4b64a";
+        return '<button type="button" class="filter-btn bi-legend-btn' + (enabled ? " on" : "") + '" data-action="' + action + '" data-value="' + key + '" aria-pressed="' + enabled + '">' +
+          '<i style="background:' + (enabled ? color : "var(--muted)") + '"></i>' + esc(METRICS[key].label) + "</button>";
+      }).join("") + "</div>"
+    );
+  }
+
+  function filterEnabledMetrics(metricOrder, stateTable) {
+    return metricOrder.filter(function (key) { return stateTable[key] !== false; });
+  }
+
   function profileChipsHtml(profiles, activeId, fixed) {
     if (profiles.length <= 1 && fixed) return "";
     return (
@@ -1120,6 +1141,12 @@
       granularity: "day",
       overlay: false,
       pvpGranularity: "day",
+      // Legende cliquable des graphiques superposes : cle metrique -> false
+      // = courbe cachee (absent/true = visible). Trop de metriques
+      // superposees reste illisible quelle que soit la granularite -
+      // laisser choisir lesquelles afficher regle le probleme a la racine.
+      overlayEnabledMetrics: {},
+      pvpEnabledMetrics: {},
       sort: { key: "date", dir: "desc" },
       profFilter: "overall",
     };
@@ -1181,17 +1208,19 @@
         : "";
 
       var kpis = renderKpis(active, win);
+      var enabledEvolutionMetrics = filterEnabledMetrics(METRIC_ORDER, state.overlayEnabledMetrics);
       var chart = state.overlay
         ? buildLineChart(
-            overlaySeriesForProfile(active, state.granularity, win.from, win.to),
+            overlaySeriesForProfile(active, state.granularity, win.from, win.to, enabledEvolutionMetrics),
             { ariaLabel: "Evolution de toutes les metriques pour " + active.char.name, fmtY: function (v) { return Math.round(v) + "%"; }, noArea: true, uid: uid }
           )
         : buildLineChart(
             [{ id: active.id, label: active.char.name, color: classColor(active.char.class), points: bucketSeries(seriesForProfile(active, state.metric, win.from, win.to), state.granularity) }],
             { ariaLabel: "Evolution de " + METRICS[state.metric].label + " pour " + active.char.name, fmtY: METRICS[state.metric].fmtY, fmt: METRICS[state.metric].fmt, uid: uid }
           );
+      var enabledPvpMetrics = filterEnabledMetrics(PVP_METRIC_ORDER, state.pvpEnabledMetrics);
       var pvpChart = buildLineChart(
-        overlaySeriesForProfile(active, state.pvpGranularity, win.from, win.to, PVP_METRIC_ORDER),
+        overlaySeriesForProfile(active, state.pvpGranularity, win.from, win.to, enabledPvpMetrics),
         { ariaLabel: "PVP dans le temps pour " + active.char.name, fmtY: function (v) { return Math.round(v) + "%"; }, noArea: true, uid: uid + 1000 }
       );
 
@@ -1211,9 +1240,14 @@
       html += renderProfessionDetail(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' +
         (state.overlay ? "" : metricSelectorHtml(state.metric)) + "</div>" +
-        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.granularity) + overlayToggleHtml(state.overlay) + "</div>" + chart.html + "</div>";
+        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.granularity) + overlayToggleHtml(state.overlay) + "</div>" + chart.html +
+        (state.overlay
+          ? '<p class="dash-note bi-legend-hint">Clique sur une metrique pour l\'afficher/la masquer</p>' + metricLegendToggleHtml(METRIC_ORDER, OVERLAY_COLORS, state.overlayEnabledMetrics, "toggle-overlay-metric")
+          : "") + "</div>";
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">PVP dans le temps</h3></div>' +
-        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.pvpGranularity, "pvp-granularity") + "</div>" + pvpChart.html + "</div>";
+        '<div class="bi-chart-subhead">' + granularitySelectorHtml(state.pvpGranularity, "pvp-granularity") + "</div>" + pvpChart.html +
+        '<p class="dash-note bi-legend-hint">Clique sur une metrique pour l\'afficher/la masquer</p>' +
+        metricLegendToggleHtml(PVP_METRIC_ORDER, OVERLAY_COLORS, state.pvpEnabledMetrics, "toggle-pvp-metric") + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
       if (hasProfessions) {
@@ -1278,6 +1312,16 @@
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
       else if (action === "granularity") { state.granularity = el.dataset.value; render(); }
       else if (action === "pvp-granularity") { state.pvpGranularity = el.dataset.value; render(); }
+      else if (action === "toggle-overlay-metric") {
+        var k1 = el.dataset.value;
+        state.overlayEnabledMetrics[k1] = (state.overlayEnabledMetrics[k1] === false) ? true : false;
+        render();
+      }
+      else if (action === "toggle-pvp-metric") {
+        var k2 = el.dataset.value;
+        state.pvpEnabledMetrics[k2] = (state.pvpEnabledMetrics[k2] === false) ? true : false;
+        render();
+      }
       else if (action === "overlay") { state.overlay = !state.overlay; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "remove-profile") {
