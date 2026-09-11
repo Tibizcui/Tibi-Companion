@@ -1048,7 +1048,7 @@
   // CONTROLES (segments reutilisant les styles .filter-btn du site)
   // ==========================================================================
   function rangeSelectorHtml(range) {
-    var opts = [["7", "7 jours"], ["30", "30 jours"], ["90", "90 jours"], ["all", "Tout"]];
+    var opts = [["1", "Jour"], ["7", "7 jours"], ["30", "30 jours"], ["90", "90 jours"], ["all", "Tout"]];
     return (
       '<div class="filter-buttons bi-range" role="group" aria-label="Periode">' +
       opts.map(function (o) {
