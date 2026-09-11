@@ -32,11 +32,18 @@
       "output": "dist"
     },
     "win": {
-      "target": "nsis"
+      "target": ["nsis", "appx"]
     },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
+    },
+    "appx": {
+      "applicationId": "TibiCompanion",
+      "identityName": "Tibizcui.TibiCompanion",
+      "publisher": "CN=FDF6D71C-1DC5-4359-B521-AD39A9CE98D5",
+      "publisherDisplayName": "Tibizcui",
+      "displayName": "Tibi Companion"
     },
     "mac": {
       "target": "dmg",
