@@ -519,6 +519,18 @@
     arenaPlayedGained: "#ffb454", arenaWonGained: "#b389f4",
   };
 
+  // Identite couleur des 3 sections repliables (tuiles resume) - meme
+  // principe que l'addon Stats (UI.lua, SECTION_ACCENTS) : PVP reprend le
+  // rose de pvpKillsGained (pas de carte PVP dans METRIC_ORDER), Gouffres et
+  // Tourments partagent la meme tuile/couleur (fusion demandee, memes deux
+  // systemes de contenu solo scalable que l'addon), Reputations reprend le
+  // vert de repGained.
+  var SUMMARY_SECTION_COLORS = {
+    pvp: OVERLAY_COLORS.pvpKillsGained,
+    delves: OVERLAY_COLORS.delves,
+    reputations: OVERLAY_COLORS.repGained,
+  };
+
   // Normalise une serie {ed,v,label} sur 0-100 (min-max de la serie elle-meme)
   // pour rendre des metriques d'echelles tres differentes (quetes ~100,
   // or ~milliers, temps joue en heures...) comparables visuellement sur un
@@ -624,10 +636,17 @@
     return Math.round((wins / total) * 100);
   }
 
-  function tileHtml(title, stats, sub) {
+  // key/color/expanded : tuile cliquable qui deplie/replie son detail (cf.
+  // action "toggle-summary") - meme principe que l'addon Stats (UI.lua,
+  // BuildTile/view.summaryExpanded). Couleur de section sur le lisere du
+  // haut et le titre, comme les cartes KPI (OVERLAY_COLORS).
+  function tileHtml(key, title, color, expanded, stats, sub) {
+    var indicator = expanded
+      ? '<span style="color:' + color + ';font-weight:700">- Replier</span>'
+      : '<span style="color:var(--muted);font-weight:700">+ Deplier</span>';
     return (
-      '<div class="stats-tile">' +
-        '<div class="stats-tile-title">' + esc(title) + "</div>" +
+      '<div class="stats-tile" data-action="toggle-summary" data-value="' + esc(key) + '" style="border-top-color:' + color + ';cursor:pointer">' +
+        '<div class="stats-tile-head"><div class="stats-tile-title" style="color:' + color + '">' + esc(title) + "</div>" + indicator + "</div>" +
         '<div class="stats-tile-stats">' +
           stats.map(function (s) { return '<div><div class="stats-tile-label">' + esc(s[0]) + '</div><div class="stats-tile-value">' + esc(s[1]) + "</div></div>"; }).join("") +
         "</div>" +
@@ -636,12 +655,18 @@
     );
   }
 
-  // Trois tuiles resume (Gouffres / PVP / Tourments) - photo instantanee
-  // fournie par Blizzard, pas d'historique jour par jour comme les cartes
-  // KPI ci-dessus (aucune donnee equivalente n'existe cote client). Le
-  // detail (par bracket, par champ de bataille, par type de gouffre) est
-  // rendu a part par renderPvpDetail/renderDelveDetail, en tableaux.
-  function renderSummaryTiles(char) {
+  // Trois tuiles resume (PVP / Gouffres+Tourments / Reputations) - photo
+  // instantanee fournie par Blizzard, pas d'historique jour par jour comme
+  // les cartes KPI ci-dessus (aucune donnee equivalente n'existe cote
+  // client). Repliees par defaut (summaryExpanded) ; le detail (par
+  // bracket, par champ de bataille, par type de gouffre/donjon Tourment)
+  // n'est rendu que si sa tuile est depliee (cf. les appels a
+  // renderPvpDetail/renderDelveDetail/renderTorghastDungeonDetail/
+  // renderReputationDetail plus bas). Gouffres et Tourments partagent
+  // desormais UNE seule tuile/un seul depliage (demande utilisateur du
+  // 2026-09-13, meme fusion que l'addon - deux systemes de contenu solo
+  // scalable).
+  function renderSummaryTiles(char, summaryExpanded) {
     var pvp = char && char.pvp, t = char && char.torghast;
     var types = char && char.delveTypes;
     var delveTypesTotal = 0;
@@ -651,12 +676,20 @@
     // vient des Statistiques Blizzard (a vie, toutes saisons) et peut donc
     // etre superieur - on prend toujours le plus grand des deux.
     var delveTotal = Math.max(delveTypesTotal, (char && char.delveCompletedLifetime) || 0);
+    var hasTorghastData = t && (t.highestLayer != null || t.soulAsh != null || t.soulCinders != null);
 
-    var delveSub = (char && char.delveTierAchievementName) ? '<span style="color:var(--gold-soft);font-weight:700">' + esc(char.delveTierAchievementName) + "</span>"
-      : (char && char.delveAllMaxed ? '<span style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>'
-      : (delveTotal === 0 ? "Aucun gouffre termine" : ""));
+    var delveSub;
+    if (char && char.delveTierAchievementName) delveSub = '<span style="color:var(--gold-soft);font-weight:700">' + esc(char.delveTierAchievementName) + "</span>";
+    else if (char && char.delveAllMaxed) delveSub = '<span style="color:var(--gold-soft);font-weight:700">Tous les gouffres rencontres sont au palier max !</span>';
+    else if (delveTotal === 0 && !hasTorghastData) delveSub = "Aucun gouffre ni Tourment termine";
+    else {
+      var extras = [];
+      if (char && char.delveCompanionLevel != null) extras.push("Compagnon " + char.delveCompanionLevel);
+      if (t && t.soulAsh != null) extras.push("Cendres " + fmtNum(t.soulAsh));
+      if (t && t.soulCinders != null) extras.push("Noires " + fmtNum(t.soulCinders));
+      delveSub = extras.join(" &middot; ");
+    }
     var pvpSub = (pvp && pvp.brackets && Object.keys(pvp.brackets).length) ? "" : "Aucune activite PVP classee cette saison.";
-    var torghastSub = (t && (t.highestLayer != null || t.soulAsh != null || t.soulCinders != null)) ? "" : "Aucune donnee Tourments pour ce personnage.";
 
     var repSummary = char && char.reputations && char.reputations.summary;
     var repSub = (repSummary && repSummary.paragonReady) ? '<span style="color:var(--gold-soft);font-weight:700">' + repSummary.paragonReady + " caisse(s) paragon disponible(s)</span>"
@@ -666,10 +699,12 @@
 
     return (
       '<div class="stats-tiles">' +
-        tileHtml("Gouffres", [["Total", fmtNum(delveTotal)], ["Palier", (char && char.delveHighestTier != null) ? char.delveHighestTier : "-"], ["Compagnon", (char && char.delveCompanionLevel != null) ? char.delveCompanionLevel : "-"]], delveSub) +
-        tileHtml("PVP", [["Tues", fmtNum(pvp && pvp.honorableKills || 0)], ["Honneur", fmtNum(pvp && pvp.honor || 0)], ["Conquete", fmtNum(pvp && pvp.conquest || 0)]], pvpSub) +
-        tileHtml("Tourments", [["Palier", (t && t.highestLayer != null) ? t.highestLayer : "-"], ["Cendres", fmtNum(t && t.soulAsh || 0)], ["Noires", fmtNum(t && t.soulCinders || 0)]], torghastSub) +
-        tileHtml("Reputations", [["Suivies", fmtNum(repSummary && repSummary.tracked || 0)], ["Rang max", (repSummary && repSummary.highestRenownRank != null) ? repSummary.highestRenownRank : "-"], ["Exaltees", fmtNum(repSummary && repSummary.maxedCount || 0)]], repSub) +
+        tileHtml("pvp", "PVP", SUMMARY_SECTION_COLORS.pvp, !!summaryExpanded.pvp,
+          [["Tues", fmtNum(pvp && pvp.honorableKills || 0)], ["Honneur", fmtNum(pvp && pvp.honor || 0)], ["Conquete", fmtNum(pvp && pvp.conquest || 0)]], pvpSub) +
+        tileHtml("delves", "Gouffres et Tourments", SUMMARY_SECTION_COLORS.delves, !!summaryExpanded.delves,
+          [["Total", fmtNum(delveTotal)], ["Palier gouffre", (char && char.delveHighestTier != null) ? char.delveHighestTier : "-"], ["Palier tourment", (t && t.highestLayer != null) ? t.highestLayer : "-"]], delveSub) +
+        tileHtml("reputations", "Reputations", SUMMARY_SECTION_COLORS.reputations, !!summaryExpanded.reputations,
+          [["Suivies", fmtNum(repSummary && repSummary.tracked || 0)], ["Rang max", (repSummary && repSummary.highestRenownRank != null) ? repSummary.highestRenownRank : "-"], ["Exaltees", fmtNum(repSummary && repSummary.maxedCount || 0)]], repSub) +
       "</div>"
     );
   }
@@ -684,6 +719,13 @@
         rows.map(function (r) { return "<tr>" + r.map(function (c) { return '<td class="' + (c[1] || "") + '">' + c[0] + "</td>"; }).join("") + "</tr>"; }).join("") +
       "</tbody></table>"
     );
+  }
+
+  // Enveloppe commune des panneaux de detail sous une tuile - lisere/titre
+  // dans la couleur de la section (cf. SUMMARY_SECTION_COLORS), meme
+  // traitement que le fix "couleur de la carte d'origine" des cartes KPI.
+  function statsDetailWrap(color, title, innerHtml) {
+    return '<div class="stats-detail" style="border-top-color:' + color + '"><div class="stats-detail-title" style="color:' + color + '">' + esc(title) + "</div>" + innerHtml + "</div>";
   }
 
   // Detail PVP : bilan par bracket + detail par champ de bataille, en
@@ -720,7 +762,7 @@
     }
     var bgTable = tableHtml("Champs de bataille - detail", [["Nom"], ["Victoires", "num"]], bgRows, "Aucun champ de bataille joue.");
 
-    return '<div class="stats-detail"><div class="stats-detail-title">PVP</div>' + summaryLine + bracketTable + bgTable + "</div>";
+    return statsDetailWrap(SUMMARY_SECTION_COLORS.pvp, "PVP", summaryLine + bracketTable + bgTable);
   }
 
   // Detail Gouffres : tableau par type (nom / nombre de fois / palier max).
@@ -734,7 +776,7 @@
         return [[esc(n)], [esc(e.count || 0), "num"], ['<span style="color:var(--gold-soft);font-weight:700">' + esc(e.highestTier || 0) + "</span>", "num"]];
       });
     }
-    return '<div class="stats-detail"><div class="stats-detail-title">Gouffre</div>' + tableHtml("", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage.") + "</div>";
+    return statsDetailWrap(SUMMARY_SECTION_COLORS.delves, "Gouffre", tableHtml("", [["Nom"], ["Fois", "num"], ["Palier max", "num"]], rows, "Aucun gouffre termine pour ce personnage."));
   }
 
   // Difficulte "Tourment" appliquee a des donjons classiques (haut fait
@@ -759,7 +801,7 @@
         return [[esc(n)], [esc(e.count || 0), "num"], [echelonHtml, "num"], [achHtml]];
       });
     }
-    return '<div class="stats-detail"><div class="stats-detail-title">Tourments - La tour des damnes</div>' + tableHtml("", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage.") + "</div>";
+    return statsDetailWrap(SUMMARY_SECTION_COLORS.delves, "Tourments - La tour des damnes", tableHtml("", [["Nom"], ["Fois", "num"], ["Echelon max", "num"], ["Haut fait"]], rows, "Aucun Tourment termine pour ce personnage."));
   }
 
   function repSystemLabel(info) {
@@ -785,7 +827,7 @@
         return [[esc(info.name || "?")], [esc(repSystemLabel(info))], [progressHtml, "num"]];
       });
     }
-    return '<div class="stats-detail"><div class="stats-detail-title">Reputation</div>' + tableHtml("", [["Nom"], ["Systeme"], ["Progression", "num"]], rows, "Aucune progression de reputation recente.") + "</div>";
+    return statsDetailWrap(SUMMARY_SECTION_COLORS.reputations, "Reputation", tableHtml("", [["Nom"], ["Systeme"], ["Progression", "num"]], rows, "Aucune progression de reputation recente."));
   }
 
   // Metiers suivis nativement par Stats (char.professionsNative, distinct
@@ -1331,6 +1373,10 @@
       // deux tris n'interferent pas l'un avec l'autre.
       eventMetric: null,
       eventSort: { key: "date", dir: "desc" },
+      // Sections repliables (PVP/Gouffres+Tourments/Reputations) - meme
+      // principe que l'addon Stats (UI.lua, view.summaryExpanded) : repliees
+      // par defaut, cliquer sur la tuile deplie son detail complet.
+      summaryExpanded: {},
     };
     if (state.profiles.length) state.activeId = state.profiles[0].id;
 
@@ -1423,11 +1469,16 @@
         html += '<div class="bi-chart-card" style="border-top-color:' + evColor + '"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + evColor + '">Detail : ' + esc(evLabel) + '</h3></div>' +
           renderEventLogTable(active, state.eventMetric, win, state.eventSort) + "</div>";
       }
-      html += renderSummaryTiles(active.char);
-      html += renderPvpDetail(active.char);
-      html += renderDelveDetail(active.char);
-      html += renderTorghastDungeonDetail(active.char);
-      html += renderReputationDetail(active.char);
+      html += renderSummaryTiles(active.char, state.summaryExpanded);
+      // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
+      // action "toggle-summary") - repond a la meme demande que l'addon :
+      // tuile qui "ne fait rien" et detail toujours affiche en double
+      // dessous. Metiers (renderProfessionDetail) reste toujours affiche :
+      // pas une tuile de renderSummaryTiles, hors perimetre de cet
+      // alignement (demande explicite : "aligne aussi LES TUILES").
+      if (state.summaryExpanded.pvp) html += renderPvpDetail(active.char);
+      if (state.summaryExpanded.delves) { html += renderDelveDetail(active.char); html += renderTorghastDungeonDetail(active.char); }
+      if (state.summaryExpanded.reputations) html += renderReputationDetail(active.char);
       html += renderProfessionDetail(active.char);
       html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Evolution</h3>' +
         (state.overlay ? "" : metricSelectorHtml(state.metric)) + "</div>" +
@@ -1534,6 +1585,11 @@
       else if (action === "toggle-event-detail") {
         var evMetric = el.dataset.value;
         state.eventMetric = (state.eventMetric === evMetric) ? null : evMetric;
+        render();
+      }
+      else if (action === "toggle-summary") {
+        var sKey = el.dataset.value;
+        state.summaryExpanded[sKey] = !state.summaryExpanded[sKey];
         render();
       }
       else if (action === "sort-events") {
