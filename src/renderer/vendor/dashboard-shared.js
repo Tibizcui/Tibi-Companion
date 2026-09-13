@@ -227,6 +227,19 @@
     var m = Math.floor((seconds % 3600) / 60);
     return h + "h" + String(m).padStart(2, "0");
   }
+  // Duree d'un run (M+ ou donjon normal, en secondes - miroir de Stats/UI.lua
+  // fmtDuration) : plus courte typiquement qu'une session de jeu totale
+  // (fmtHours), donc "Ym Ss" sous l'heure plutot que "0h23".
+  function fmtDuration(seconds) {
+    if (seconds == null) return "-";
+    seconds = Math.floor(seconds);
+    if (seconds <= 0) return "-";
+    var h = Math.floor(seconds / 3600);
+    var m = Math.floor((seconds % 3600) / 60);
+    var s = seconds % 60;
+    if (h > 0) return h + "h" + String(m).padStart(2, "0");
+    return m + "m" + String(s).padStart(2, "0");
+  }
 
   function fmtNum(n) { return Math.round(n || 0).toLocaleString("fr-FR"); }
 
@@ -261,6 +274,19 @@
     var days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
     return days[d.getUTCDay()] + " " + d.getUTCDate() + " " + MONTHS_FR[d.getUTCMonth()] + " " + d.getUTCFullYear();
   }
+  // Horodatage d'un evenement individuel (questLog/dungeonLog/delveLog/repLog,
+  // en secondes Unix comme generatedAt) - meme convention UTC que
+  // fmtGeneratedAt ci-dessus (coherent quelle que soit la timezone du
+  // visiteur, au prix d'un decalage vs l'heure locale reelle du joueur).
+  function fmtEventTime(ts) {
+    if (!ts) return "?";
+    var d = new Date(ts * 1000);
+    var dd = String(d.getUTCDate()).padStart(2, "0");
+    var mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    var hh = String(d.getUTCHours()).padStart(2, "0");
+    var mi = String(d.getUTCMinutes()).padStart(2, "0");
+    return dd + "/" + mm + " " + hh + ":" + mi;
+  }
 
   function classColor(cls) { return CLASS_COLORS[String(cls || "").toUpperCase()] || "#e4b64a"; }
 
@@ -268,7 +294,7 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0,
+    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, raids: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0,
       bgPlayedGained: 0, bgWonGained: 0, arenaPlayedGained: 0, arenaWonGained: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
@@ -279,6 +305,7 @@
       out.played += d.played || 0;
       out.dungeons += d.dungeons || 0;
       out.mplusCount += (d.mplus && d.mplus.length) || 0;
+      out.raids += d.raids || 0;
       out.delves += d.delves || 0;
       out.repGained += d.repGained || 0;
       out.pvpKillsGained += d.pvpKillsGained || 0;
@@ -460,6 +487,7 @@
     gold: { label: "Or (net/jour)", get: function (d) { return (d.goldGain || 0) - (d.goldSpent || 0); }, fmt: fmtGold, fmtY: fmtGoldShort },
     played: { label: "Temps joue", get: function (d) { return (d.played || 0) / 3600; }, fmt: function (v) { return fmtHours(v * 3600); }, fmtY: function (v) { return v.toFixed(0) + "h"; } },
     dungeons: { label: "Donjons & M+", get: function (d) { return (d.dungeons || 0) + ((d.mplus && d.mplus.length) || 0); }, fmt: fmtNum, fmtY: fmtNum },
+    raids: { label: "Raids", get: function (d) { return d.raids || 0; }, fmt: fmtNum, fmtY: fmtNum },
     delves: { label: "Gouffres", get: function (d) { return d.delves || 0; }, fmt: fmtNum, fmtY: fmtNum },
     repGained: { label: "Reputation gagnee", get: function (d) { return d.repGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     profGained: { label: "Points de metier gagnes", get: function (d) { return d.profGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
@@ -473,7 +501,7 @@
   // meme ordre que les tuiles resume (Gouffres/Tourments/Reputations/Metiers).
   // PVP (adversaires tues/champs de bataille/arenes) vit dans son propre
   // graphique dedie (PVP_METRIC_ORDER plus bas), pas ici.
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "delves", "repGained", "profGained"];
+  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "raids", "delves", "repGained", "profGained"];
 
   // Graphique PVP dedie : toujours superpose (pas de mode une-seule-metrique,
   // 5 courbes restent lisibles).
@@ -484,7 +512,7 @@
   // rester lisibles sur le fond graphite. Memes teintes que l'addon Stats
   // (UI.lua, OVERLAY_COLORS / PVP_OVERLAY_COLORS).
   var OVERLAY_COLORS = {
-    quests: "#4fd1c5", gold: "#f4d68a", played: "#7c9eff", dungeons: "#ff8a8a",
+    quests: "#4fd1c5", gold: "#f4d68a", played: "#7c9eff", dungeons: "#ff8a8a", raids: "#e0975c",
     delves: "#b389f4", repGained: "#6ee7b7", profGained: "#ffb454",
     pvpKillsGained: "#ff6ec7", bgPlayedGained: "#7c9eff", bgWonGained: "#6ee7b7",
     arenaPlayedGained: "#ffb454", arenaWonGained: "#b389f4",
@@ -811,6 +839,7 @@
       { key: "gold", label: "Or (net)", value: fmtGold(net), cur: net, prev: prevNet, cls: net >= 0 ? "pos" : "neg", sub: fmtGold(t.goldGain) + " gagne &middot; " + fmtGold(t.goldSpent) + " depense", metric: "gold" },
       { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
+      { key: "raids", label: "Raids", value: fmtNum(t.raids), cur: t.raids, prev: p ? p.raids : null, metric: "raids" },
       { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
       { key: "repGained", label: "Reputation gagnee", value: fmtNum(t.repGained), cur: t.repGained, prev: p ? p.repGained : null, metric: "repGained" },
       { key: "profGained", label: "Points de metier gagnes", value: fmtNum(t.profGained), cur: t.profGained, prev: p ? p.profGained : null, metric: "profGained" },
@@ -821,8 +850,12 @@
       defs.map(function (c) {
         var keys = Object.keys(cur).sort();
         var vals = keys.map(function (k) { return METRICS[c.metric].get(cur[k] || {}); });
+        // Cliquable des qu'un journal d'evenements existe pour la metrique
+        // (EVENT_LOG_COLS) - les 8 cartes en ont desormais toutes un.
+        var clickable = !!EVENT_LOG_COLS[c.metric];
         return (
-          '<div class="kpi-card">' +
+          '<div class="kpi-card' + (clickable ? " kpi-card--clickable" : "") + '"' +
+            (clickable ? ' data-action="toggle-event-detail" data-value="' + c.metric + '"' : "") + '>' +
             '<div class="kpi-top"><span class="kpi-label">' + esc(c.label) + "</span>" + buildSparkline(vals, { color: color }) + "</div>" +
             '<div class="kpi-value ' + (c.cls || "") + '">' + c.value + "</div>" +
             (c.sub ? '<div class="kpi-sub">' + c.sub + "</div>" : "") +
@@ -873,6 +906,138 @@
     return (
       '<div class="dash-table-wrap"><table class="dash-table"><thead><tr>' + head + "</tr></thead><tbody>" + body + "</tbody></table></div>" +
       '<p class="dash-note">' + rows.length + " jour" + (rows.length > 1 ? "s" : "") + " sur la periode selectionnee. Clique un en-tete pour trier.</p>"
+    );
+  }
+
+  // ==========================================================================
+  // DETAIL PAR EVENEMENT (clic sur une carte KPI) : liste chronologique des
+  // evenements individuels d'une metrique, miroir de Stats/UI.lua
+  // BuildEventListDetail cote addon. Les 8 cartes ont desormais toutes un
+  // journal d'evenements.
+  // ==========================================================================
+  var EVENT_LOG_MAX_ROWS = 300;
+  var EVENT_METRIC_LABELS = { quests: "Quetes", dungeons: "Donjons & M+", raids: "Raids", delves: "Gouffres",
+                               repGained: "Reputation gagnee", gold: "Or", played: "Temps joue", profGained: "Points de metier gagnes" };
+  // Traduction des valeurs BRUTES stockees par Core.lua (source de l'or,
+  // activite de temps joue) vers un libelle affiche.
+  var GOLD_SOURCE_LABELS = { quest: "Quete", vendor: "Marchand", ah: "Hotel des ventes", other: "Autre" };
+  var PLAYTIME_ACTIVITY_LABELS = { dungeon: "Donjon", raid: "Raid", delve: "Gouffre", world: "Monde" };
+  var EVENT_LOG_COLS = {
+    quests: [
+      { label: "Quete", get: function (e) { return e.quest; } },
+      { label: "Zone", get: function (e) { return e.zone; } },
+      { label: "XP", get: function (e) { return e.xp; }, num: true },
+    ],
+    dungeons: [
+      // mplus utilise "map", dungeonLog (donjons normaux) utilise "name".
+      { label: "Nom", get: function (e) { return e.map || e.name; } },
+      { label: "Niveau", get: function (e) { return e.level; }, num: true },
+      { label: "Spe", get: function (e) { return e.spec; } },
+      // time est en secondes (M+ converti depuis les millisecondes Blizzard,
+      // donjon normal = duree brute entree/sortie d'instance - cf. Core.lua).
+      { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
+    ],
+    raids: [
+      { label: "Nom", get: function (e) { return e.name; } },
+      { label: "Spe", get: function (e) { return e.spec; } },
+      { label: "Boss tues", get: function (e) { return e.bossKills; }, num: true },
+      { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
+    ],
+    delves: [
+      { label: "Nom", get: function (e) { return e.name; } },
+      { label: "Palier", get: function (e) { return e.tier; }, num: true },
+    ],
+    repGained: [
+      { label: "Faction", get: function (e) { return e.faction; } },
+      { label: "Gain", get: function (e) { return e.amount; }, num: true },
+    ],
+    gold: [
+      { label: "Source", get: function (e) { return GOLD_SOURCE_LABELS[e.source] || e.source; } },
+      { label: "Montant", get: function (e) { return e.amount; }, num: true, gold: true },
+    ],
+    played: [
+      { label: "Activite", get: function (e) { return PLAYTIME_ACTIVITY_LABELS[e.activity] || e.activity; } },
+      { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
+    ],
+    profGained: [
+      { label: "Metier", get: function (e) { return e.profession; } },
+      { label: "Gain", get: function (e) { return e.amount; }, num: true },
+    ],
+  };
+
+  // Aplatit les journaux d'evenements de plusieurs jours (fenetre win) en une
+  // seule liste triee par ts decroissant - meme fusion mplus+dungeonLog que
+  // cote Lua (SX.Aggregate) pour la carte "Donjons & M+".
+  function flattenEventLog(days, win, metricKey) {
+    var scoped = sliceDays(days, win.from, win.to);
+    var rows = [];
+    Object.keys(scoped).forEach(function (k) {
+      var d = scoped[k] || {};
+      if (metricKey === "quests") {
+        (d.questLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "dungeons") {
+        (d.mplus || []).forEach(function (e) { rows.push(e); });
+        (d.dungeonLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "raids") {
+        (d.raidLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "delves") {
+        (d.delveLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "repGained") {
+        (d.repLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "gold") {
+        (d.goldLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "played") {
+        (d.playtimeLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "profGained") {
+        (d.profLog || []).forEach(function (e) { rows.push(e); });
+      }
+    });
+    rows.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
+    return rows;
+  }
+
+  function renderEventLogTable(profile, metricKey, win, sort) {
+    sort = sort || { key: "date", dir: "desc" };
+    var cols = EVENT_LOG_COLS[metricKey];
+    if (!cols) return "";
+    var allRows = flattenEventLog(profile.days, win, metricKey);
+    if (allRows.length === 0) {
+      return '<p class="dash-empty">Aucun evenement enregistre sur cette periode.</p>';
+    }
+    var rows = allRows.slice(0, EVENT_LOG_MAX_ROWS);
+
+    var sorters = { date: function (r) { return r.ts || 0; } };
+    cols.forEach(function (c, i) {
+      sorters["c" + i] = function (r) { var v = c.get(r); return c.num ? (v || 0) : String(v || ""); };
+    });
+    var sf = sorters[sort.key] || sorters.date;
+    rows.sort(function (a, b) {
+      var va = sf(a), vb = sf(b);
+      var cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return cmp * (sort.dir === "asc" ? 1 : -1);
+    });
+
+    var headCols = [{ key: "date", label: "Date" }].concat(cols.map(function (c, i) { return { key: "c" + i, label: c.label }; }));
+    var head = headCols.map(function (c) {
+      var active = sort.key === c.key;
+      var arrow = active ? (sort.dir === "asc" ? " &#9650;" : " &#9660;") : "";
+      return '<th><button type="button" class="dash-sort-btn" data-action="sort-events" data-key="' + c.key + '" aria-sort="' + (active ? (sort.dir === "asc" ? "ascending" : "descending") : "none") + '">' + c.label + arrow + "</button></th>";
+    }).join("");
+    var body = rows.map(function (r) {
+      var tds = cols.map(function (c) {
+        var v = c.get(r);
+        var text = c.duration ? fmtDuration(v)
+          : c.gold ? fmtGold(v || 0)
+          : (v == null || v === "") ? "-" : (c.num ? fmtNum(Math.round(v)) : esc(String(v)));
+        return "<td" + (c.num ? ' class="num"' : "") + ">" + text + "</td>";
+      }).join("");
+      return "<tr><td>" + esc(fmtEventTime(r.ts)) + "</td>" + tds + "</tr>";
+    }).join("");
+    return (
+      '<div class="dash-table-wrap"><table class="dash-table"><thead><tr>' + head + "</tr></thead><tbody>" + body + "</tbody></table></div>" +
+      '<p class="dash-note">' + allRows.length + " evenement" + (allRows.length > 1 ? "s" : "") + " sur la periode selectionnee" +
+      (allRows.length > EVENT_LOG_MAX_ROWS ? " (affichage limite aux " + EVENT_LOG_MAX_ROWS + " plus recents)" : "") +
+      ". Clique un en-tete pour trier.</p>"
     );
   }
 
@@ -1019,6 +1184,7 @@
       { label: "Or (net)", a: fmtGold(netA), b: fmtGold(netB), win: netA === netB ? null : (netA > netB ? "a" : "b") },
       { label: "Temps joue", a: fmtHours(tA.played), b: fmtHours(tB.played), win: tA.played === tB.played ? null : (tA.played > tB.played ? "a" : "b") },
       { label: "Donjons & M+", a: fmtNum(tA.dungeons + tA.mplusCount), b: fmtNum(tB.dungeons + tB.mplusCount), win: (tA.dungeons + tA.mplusCount) === (tB.dungeons + tB.mplusCount) ? null : ((tA.dungeons + tA.mplusCount) > (tB.dungeons + tB.mplusCount) ? "a" : "b") },
+      { label: "Raids", a: fmtNum(tA.raids), b: fmtNum(tB.raids), win: tA.raids === tB.raids ? null : (tA.raids > tB.raids ? "a" : "b") },
       { label: "Jours actifs", a: fmtNum(tA.activeDayCount), b: fmtNum(tB.activeDayCount), win: tA.activeDayCount === tB.activeDayCount ? null : (tA.activeDayCount > tB.activeDayCount ? "a" : "b") },
     ];
 
@@ -1149,6 +1315,12 @@
       pvpEnabledMetrics: {},
       sort: { key: "date", dir: "desc" },
       profFilter: "overall",
+      // Detail par evenement (clic sur une carte KPI) : eventMetric = cle de
+      // la carte ouverte (null = aucune). eventSort separe de `sort`
+      // ci-dessus (qui pilote la table "Historique journalier") pour que les
+      // deux tris n'interferent pas l'un avec l'autre.
+      eventMetric: null,
+      eventSort: { key: "date", dir: "desc" },
     };
     if (state.profiles.length) state.activeId = state.profiles[0].id;
 
@@ -1232,6 +1404,11 @@
       }
       html += period;
       html += kpis;
+      if (state.eventMetric && EVENT_LOG_COLS[state.eventMetric]) {
+        var evLabel = EVENT_METRIC_LABELS[state.eventMetric] || state.eventMetric;
+        html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Detail : ' + esc(evLabel) + '</h3></div>' +
+          renderEventLogTable(active, state.eventMetric, win, state.eventSort) + "</div>";
+      }
       html += renderSummaryTiles(active.char);
       html += renderPvpDetail(active.char);
       html += renderDelveDetail(active.char);
@@ -1338,6 +1515,17 @@
         var key = el.dataset.key;
         if (state.sort.key === key) state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
         else state.sort = { key: key, dir: key === "date" ? "desc" : "desc" };
+        render();
+      }
+      else if (action === "toggle-event-detail") {
+        var evMetric = el.dataset.value;
+        state.eventMetric = (state.eventMetric === evMetric) ? null : evMetric;
+        render();
+      }
+      else if (action === "sort-events") {
+        var evKey = el.dataset.key;
+        if (state.eventSort.key === evKey) state.eventSort.dir = state.eventSort.dir === "asc" ? "desc" : "asc";
+        else state.eventSort = { key: evKey, dir: "desc" };
         render();
       }
     });

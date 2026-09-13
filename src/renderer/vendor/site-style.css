@@ -792,6 +792,8 @@ a{color:inherit}
 .kpi-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);
   padding:20px;display:flex;flex-direction:column;gap:6px;transition:border-color .25s}
 .kpi-card:hover{border-color:var(--line-strong)}
+.kpi-card--clickable{cursor:pointer}
+.kpi-card--clickable:hover{border-color:var(--gold-line)}
 .kpi-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .kpi-label{color:var(--muted);font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
 .kpi-spark{width:72px;height:26px;flex-shrink:0;overflow:visible}
