@@ -497,11 +497,12 @@
     arenaPlayedGained: { label: "Arenes jouees", get: function (d) { return d.arenaPlayedGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
     arenaWonGained: { label: "Arenes gagnees", get: function (d) { return d.arenaWonGained || 0; }, fmt: fmtNum, fmtY: fmtNum },
   };
-  // Ordre : stats generales d'abord, puis une metrique par categorie dans le
-  // meme ordre que les tuiles resume (Gouffres/Tourments/Reputations/Metiers).
-  // PVP (adversaires tues/champs de bataille/arenes) vit dans son propre
-  // graphique dedie (PVP_METRIC_ORDER plus bas), pas ici.
-  var METRIC_ORDER = ["quests", "gold", "played", "dungeons", "raids", "delves", "repGained", "profGained"];
+  // Temps joue en premier (meme ordre que l'addon Stats, UI.lua CARD_METRICS -
+  // demande utilisateur, priorite visuelle a la mesure la plus consultee),
+  // le reste dans son ordre precedent. PVP (adversaires tues/champs de
+  // bataille/arenes) vit dans son propre graphique dedie (PVP_METRIC_ORDER
+  // plus bas), pas ici.
+  var METRIC_ORDER = ["played", "quests", "gold", "dungeons", "raids", "delves", "repGained", "profGained"];
 
   // Graphique PVP dedie : toujours superpose (pas de mode une-seule-metrique,
   // 5 courbes restent lisibles).
@@ -834,10 +835,11 @@
     var net = t.goldGain - t.goldSpent, prevNet = p ? (p.goldGain - p.goldSpent) : null;
     var color = classColor(profile.char && profile.char.class);
 
+    // Temps joue en premier (cf. METRIC_ORDER) - meme ordre que l'addon.
     var defs = [
+      { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "quests", label: "Quetes completees", value: fmtNum(t.quests), cur: t.quests, prev: p ? p.quests : null, metric: "quests" },
       { key: "gold", label: "Or (net)", value: fmtGold(net), cur: net, prev: prevNet, cls: net >= 0 ? "pos" : "neg", sub: fmtGold(t.goldGain) + " gagne &middot; " + fmtGold(t.goldSpent) + " depense", metric: "gold" },
-      { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
       { key: "raids", label: "Raids", value: fmtNum(t.raids), cur: t.raids, prev: p ? p.raids : null, metric: "raids" },
       { key: "delves", label: "Gouffres", value: fmtNum(t.delves), cur: t.delves, prev: p ? p.delves : null, sub: delvesSubLabel(profile.char), metric: "delves" },
@@ -853,11 +855,19 @@
         // Cliquable des qu'un journal d'evenements existe pour la metrique
         // (EVENT_LOG_COLS) - les 8 cartes en ont desormais toutes un.
         var clickable = !!EVENT_LOG_COLS[c.metric];
+        // Couleur propre a chaque carte (meme palette que l'addon Stats,
+        // OVERLAY_COLORS) sur le liseré du haut et le mini-graphique, au
+        // lieu de la couleur de classe uniforme - demande utilisateur du
+        // 2026-09-13, meme traitement que la refonte de la grille de cartes
+        // cote addon. "Or" garde son code vert/rouge gain-perte (c.cls),
+        // plus parlant qu'une couleur de categorie sur cette carte precise.
+        var metricColor = OVERLAY_COLORS[c.metric] || color;
+        var valueStyle = c.cls ? "" : ' style="color:' + metricColor + '"';
         return (
-          '<div class="kpi-card' + (clickable ? " kpi-card--clickable" : "") + '"' +
+          '<div class="kpi-card' + (clickable ? " kpi-card--clickable" : "") + '" style="border-top-color:' + metricColor + '"' +
             (clickable ? ' data-action="toggle-event-detail" data-value="' + c.metric + '"' : "") + '>' +
-            '<div class="kpi-top"><span class="kpi-label">' + esc(c.label) + "</span>" + buildSparkline(vals, { color: color }) + "</div>" +
-            '<div class="kpi-value ' + (c.cls || "") + '">' + c.value + "</div>" +
+            '<div class="kpi-top"><span class="kpi-label">' + esc(c.label) + "</span>" + buildSparkline(vals, { color: metricColor }) + "</div>" +
+            '<div class="kpi-value ' + (c.cls || "") + '"' + valueStyle + '>' + c.value + "</div>" +
             (c.sub ? '<div class="kpi-sub">' + c.sub + "</div>" : "") +
             deltaBadge(c.cur, c.prev) +
           "</div>"
@@ -1406,7 +1416,11 @@
       html += kpis;
       if (state.eventMetric && EVENT_LOG_COLS[state.eventMetric]) {
         var evLabel = EVENT_METRIC_LABELS[state.eventMetric] || state.eventMetric;
-        html += '<div class="bi-chart-card"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0">Detail : ' + esc(evLabel) + '</h3></div>' +
+        // Meme couleur que la carte d'origine (OVERLAY_COLORS) au lieu du
+        // gris/or generique - demande utilisateur du 2026-09-13, meme
+        // principe que le fix cote addon (BuildDetail/BuildEventListDetail).
+        var evColor = OVERLAY_COLORS[state.eventMetric] || "#e4b64a";
+        html += '<div class="bi-chart-card" style="border-top-color:' + evColor + '"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + evColor + '">Detail : ' + esc(evLabel) + '</h3></div>' +
           renderEventLogTable(active, state.eventMetric, win, state.eventSort) + "</div>";
       }
       html += renderSummaryTiles(active.char);

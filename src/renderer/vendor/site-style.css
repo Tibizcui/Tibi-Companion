@@ -789,7 +789,7 @@ a{color:inherit}
 
 /* -- Cartes KPI -- */
 .bi-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px;margin:0 0 30px}
-.kpi-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius-sm);
+.kpi-card{background:var(--graphite-2);border:1px solid var(--line);border-top-width:3px;border-radius:var(--radius-sm);
   padding:20px;display:flex;flex-direction:column;gap:6px;transition:border-color .25s}
 .kpi-card:hover{border-color:var(--line-strong)}
 .kpi-card--clickable{cursor:pointer}
@@ -835,7 +835,7 @@ a{color:inherit}
 }
 
 /* -- Graphique principal -- */
-.bi-chart-card{background:var(--graphite-2);border:1px solid var(--line);border-radius:var(--radius);
+.bi-chart-card{background:var(--graphite-2);border:1px solid var(--line);border-top-width:3px;border-radius:var(--radius);
   padding:22px;margin:0 0 30px}
 .bi-chart-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 16px}
 .bi-chart-subhead{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin:-6px 0 16px}
