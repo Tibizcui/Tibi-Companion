@@ -961,6 +961,30 @@
     );
   }
 
+  // Aligne le bas de la table "Historique journalier" sur le bas de la colonne
+  // Metiers en plafonnant sa hauteur (scroll interne) a celle de cette colonne.
+  // Sans effet en dessous de 900px : .bi-columns repasse en une seule colonne
+  // empilee (cf. style.css), la table doit alors garder sa hauteur naturelle.
+  function syncHistoryTableHeight() {
+    var stacked = window.matchMedia("(max-width:900px)").matches;
+    document.querySelectorAll(".bi-columns .bi-col--wide .dash-table-wrap").forEach(function (wrap) {
+      var columns = wrap.closest(".bi-columns");
+      var profCol = columns && columns.querySelector(".bi-col:not(.bi-col--wide)");
+      if (stacked || !profCol || !profCol.textContent.trim()) { wrap.style.maxHeight = ""; return; }
+      // Ecart possible entre les deux colonnes avant leur contenu principal
+      // (ex. filtre "Metiers" sous son titre, absent au-dessus de la table) :
+      // on aligne les BAS des deux colonnes, pas seulement leurs hauteurs.
+      wrap.style.maxHeight = "";
+      var target = profCol.getBoundingClientRect().bottom - wrap.getBoundingClientRect().top;
+      wrap.style.maxHeight = Math.max(120, Math.round(target)) + "px";
+    });
+  }
+  var syncHistoryResizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(syncHistoryResizeTimer);
+    syncHistoryResizeTimer = setTimeout(syncHistoryTableHeight, 150);
+  });
+
   // ==========================================================================
   // DETAIL PAR EVENEMENT (clic sur une carte KPI) : liste chronologique des
   // evenements individuels d'une metrique, miroir de Stats/UI.lua
@@ -1001,21 +1025,64 @@
     ],
     repGained: [
       { label: "Faction", get: function (e) { return e.faction; } },
+      { label: "Nb", get: function (e) { return e.count; }, num: true },
       { label: "Gain", get: function (e) { return e.amount; }, num: true },
     ],
     gold: [
       { label: "Source", get: function (e) { return GOLD_SOURCE_LABELS[e.source] || e.source; } },
+      { label: "Nb", get: function (e) { return e.count; }, num: true },
       { label: "Montant", get: function (e) { return e.amount; }, num: true, gold: true },
     ],
     played: [
       { label: "Activite", get: function (e) { return PLAYTIME_ACTIVITY_LABELS[e.activity] || e.activity; } },
+      { label: "Nb", get: function (e) { return e.count; }, num: true },
       { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
     ],
     profGained: [
       { label: "Metier", get: function (e) { return e.profession; } },
+      { label: "Nb", get: function (e) { return e.count; }, num: true },
       { label: "Gain", get: function (e) { return e.amount; }, num: true },
     ],
   };
+
+  // Metriques regroupees par jour+dimension avant affichage (cf.
+  // groupEventRows) - toutes celles dont chaque evenement se resume a
+  // {dimension, montant/duree} sans autre colonne distinctive a preserver
+  // (contrairement a quetes/donjons/raids/gouffres : niveau/spe/duree/palier
+  // par evenement). Meme principe et memes cles que Stats/UI.lua
+  // (GROUPED_METRICS/GroupEventRows) - ces journaux peuvent accumuler des
+  // dizaines de micro-evenements par jour (chaque tick de reputation, chaque
+  // petit gain d'or, chaque segment "Monde" recoupe par un /reload),
+  // illisibles un par un (constat utilisateur, capture d'ecran en jeu du
+  // 2026-09-14).
+  var GROUPED_METRICS = { gold: "source", played: "activity", repGained: "faction", profGained: "profession" };
+
+  function eventDayKey(ts) {
+    if (!ts) return "?";
+    var d = new Date(ts * 1000);
+    return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate();
+  }
+
+  // Regroupe une liste d'evenements par jour + valeur de dimKey en une seule
+  // entree par groupe : count + somme de amount/time. ts retenu = le plus
+  // recent du groupe (sert uniquement au tri/affichage de la colonne Date).
+  function groupEventRows(rows, dimKey) {
+    var order = [], byKey = {};
+    rows.forEach(function (row) {
+      var gKey = eventDayKey(row.ts) + "" + row[dimKey];
+      var g = byKey[gKey];
+      if (!g) {
+        g = {}; g[dimKey] = row[dimKey]; g.ts = row.ts; g.count = 0; g.amount = 0; g.time = 0;
+        byKey[gKey] = g;
+        order.push(g);
+      }
+      g.count += 1;
+      g.amount += row.amount || 0;
+      g.time += row.time || 0;
+      if (row.ts && row.ts > (g.ts || 0)) g.ts = row.ts;
+    });
+    return order;
+  }
 
   // Aplatit les journaux d'evenements de plusieurs jours (fenetre win) en une
   // seule liste triee par ts decroissant - meme fusion mplus+dungeonLog que
@@ -1044,6 +1111,7 @@
         (d.profLog || []).forEach(function (e) { rows.push(e); });
       }
     });
+    if (GROUPED_METRICS[metricKey]) rows = groupEventRows(rows, GROUPED_METRICS[metricKey]);
     rows.sort(function (a, b) { return (b.ts || 0) - (a.ts || 0); });
     return rows;
   }
@@ -1505,6 +1573,7 @@
 
       container.innerHTML = html;
       attachChartInteractivity([chart, pvpChart]);
+      syncHistoryTableHeight();
     }
 
     // `charts` : resultats de buildLineChart() de CE cycle de rendu, dans le
