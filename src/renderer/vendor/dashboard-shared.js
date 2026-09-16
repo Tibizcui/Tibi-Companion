@@ -31,6 +31,13 @@
   var SUPPORTED_SCHEMAS = [1, 2];
   var STORE_KEY = "tibisuite-dashboard-profiles-v2";
   var MAX_PROFILES = 8;
+  // Identifiant d'activeId reserve au profil virtuel "Compte" (somme de tous
+  // les personnages charges) - ne peut jamais collisionner avec un vrai id
+  // de profil (ceux-ci sont "Nom-Royaume", cf. buildProfileFromEnvelope). Meme
+  // valeur que le charKey "__account__" du module Stats (UI.lua) - c'est le
+  // meme concept ("Compte (tous personnages)"), harmonise entre l'addon et
+  // le dashboard.
+  var ALL_PROFILES_ID = "__account__";
 
   // ==========================================================================
   // LZW (miroir de Stats/Libs/LZW.lua) + Base64 (atob natif, alphabet standard)
@@ -329,6 +336,57 @@
       if ((fromEd == null || ed >= fromEd) && (toEd == null || ed <= toEd)) out[k] = days[k];
     });
     return out;
+  }
+
+  // Fusionne une entree "days[dateKey]" de plusieurs personnages pour la
+  // meme date : les nombres s'additionnent (quests, played, goldGain...),
+  // les tableaux se concatenent (questLog, mplus, dungeonLog...) - generique
+  // sur les cles plutot que de lister chaque metrique en dur, pour rester
+  // valide si l'addon Stats ajoute une metrique plus tard.
+  function mergeDayEntry(base, extra) {
+    var out = Object.assign({}, base);
+    Object.keys(extra || {}).forEach(function (k) {
+      var v = extra[k];
+      if (Array.isArray(v)) out[k] = (out[k] || []).concat(v);
+      else if (typeof v === "number") out[k] = (out[k] || 0) + v;
+      else if (out[k] == null) out[k] = v;
+    });
+    return out;
+  }
+
+  // Fusionne les `days` de plusieurs profils en un seul historique (cle =
+  // date, valeur = somme/concat de tous les personnages actifs ce jour-la) -
+  // sert au profil virtuel "Compte" (cf. buildAccountProfile).
+  function mergeProfilesDays(profiles) {
+    var merged = {};
+    (profiles || []).forEach(function (p) {
+      var days = (p && p.days) || {};
+      Object.keys(days).forEach(function (k) {
+        merged[k] = mergeDayEntry(merged[k] || {}, days[k] || {});
+      });
+    });
+    return merged;
+  }
+
+  // Profil virtuel "Compte" (id reserve ALL_PROFILES_ID) : somme les `days`
+  // de tous les personnages charges. `char` reste volontairement minimal
+  // (pas de classe/niveau/reputation a "sommer" - ces details restent
+  // propres a un seul personnage) : les tuiles PVP/Gouffres/Reputations et
+  // le detail Metiers s'affichent alors vides plutot que faux.
+  function buildAccountProfile(profiles) {
+    profiles = profiles || [];
+    var generatedAt = null;
+    profiles.forEach(function (p) {
+      if (p && p.generatedAt && (generatedAt == null || p.generatedAt > generatedAt)) generatedAt = p.generatedAt;
+    });
+    return {
+      id: ALL_PROFILES_ID,
+      char: { name: "Compte (" + profiles.length + " personnage" + (profiles.length > 1 ? "s" : "") + ")" },
+      days: mergeProfilesDays(profiles),
+      professions: {},
+      generatedAt: generatedAt,
+      checksumOk: true,
+    };
   }
 
   function dayKeyBounds(days) {
@@ -1393,6 +1451,14 @@
 
   function profileChipsHtml(profiles, activeId, fixed) {
     if (profiles.length <= 1 && fixed) return "";
+    // Bouton "Compte" a cote des chips de personnages (demande utilisateur,
+    // libelle harmonise avec le charKey "__account__"/"Compte (tous
+    // personnages)" du module Stats en jeu) : n'a de sens qu'a partir de 2
+    // personnages charges, sinon ce serait un doublon strict du seul
+    // personnage disponible.
+    var accountBtn = profiles.length >= 2
+      ? '<button type="button" class="addon-chip bi-account-chip' + (activeId === ALL_PROFILES_ID ? " active" : "") + '" data-action="select-account" aria-pressed="' + (activeId === ALL_PROFILES_ID) + '" title="Additionne les statistiques de tous les personnages charges">Compte</button>'
+      : "";
     return (
       '<div class="addon-chips bi-profiles" role="group" aria-label="Personnages">' +
       profiles.map(function (p) {
@@ -1403,7 +1469,7 @@
           (fixed ? "" : ' <span class="bi-chip-remove" data-action="remove-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Retirer ' + esc(p.char.name) + '">&times;</span>') +
           "</button>"
         );
-      }).join("") + "</div>"
+      }).join("") + accountBtn + "</div>"
     );
   }
 
@@ -1449,6 +1515,7 @@
     if (state.profiles.length) state.activeId = state.profiles[0].id;
 
     function getActive() {
+      if (state.activeId === ALL_PROFILES_ID) return buildAccountProfile(state.profiles);
       return state.profiles.filter(function (p) { return p.id === state.activeId; })[0] || null;
     }
 
@@ -1635,6 +1702,7 @@
       }
       else if (action === "overlay") { state.overlay = !state.overlay; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
+      else if (action === "select-account") { state.activeId = ALL_PROFILES_ID; render(); }
       else if (action === "remove-profile") {
         e.stopPropagation();
         var id = el.dataset.id;
