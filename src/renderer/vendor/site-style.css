@@ -782,6 +782,7 @@ a{color:inherit}
 .bi-account-chip{font-weight:700;border-color:var(--line)}
 .bi-account-chip.active{background:linear-gradient(135deg,rgba(228,182,74,.16),rgba(228,182,74,.06));
   border-color:var(--gold-line);color:var(--gold-soft)}
+.bi-chip-sep{align-self:center;color:var(--gold);font-weight:700;opacity:.7;user-select:none}
 .bi-compare-btn{padding:9px 16px;font-size:.82rem}
 .bi-compare-btn.active{border-color:var(--gold-line);color:var(--gold-soft);background:rgba(228,182,74,.08)}
 .compare-pickers{align-items:center;gap:14px;margin:0 0 22px}

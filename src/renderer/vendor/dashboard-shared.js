@@ -1451,16 +1451,18 @@
 
   function profileChipsHtml(profiles, activeId, fixed) {
     if (profiles.length <= 1 && fixed) return "";
-    // Bouton "Compte" a cote des chips de personnages (demande utilisateur,
-    // libelle harmonise avec le charKey "__account__"/"Compte (tous
-    // personnages)" du module Stats en jeu) : n'a de sens qu'a partir de 2
-    // personnages charges, sinon ce serait un doublon strict du seul
-    // personnage disponible.
+    // Bouton "Compte" au debut des chips de personnages, separe par un trait
+    // dore (demande utilisateur, libelle harmonise avec le charKey
+    // "__account__"/"Compte (tous personnages)" du module Stats en jeu) :
+    // n'a de sens qu'a partir de 2 personnages charges, sinon ce serait un
+    // doublon strict du seul personnage disponible.
     var accountBtn = profiles.length >= 2
-      ? '<button type="button" class="addon-chip bi-account-chip' + (activeId === ALL_PROFILES_ID ? " active" : "") + '" data-action="select-account" aria-pressed="' + (activeId === ALL_PROFILES_ID) + '" title="Additionne les statistiques de tous les personnages charges">Compte</button>'
+      ? '<button type="button" class="addon-chip bi-account-chip' + (activeId === ALL_PROFILES_ID ? " active" : "") + '" data-action="select-account" aria-pressed="' + (activeId === ALL_PROFILES_ID) + '" title="Additionne les statistiques de tous les personnages charges">Compte</button>' +
+        '<span class="bi-chip-sep" aria-hidden="true">|</span>'
       : "";
     return (
       '<div class="addon-chips bi-profiles" role="group" aria-label="Personnages">' +
+      accountBtn +
       profiles.map(function (p) {
         var color = classColor(p.char.class);
         return (
@@ -1469,7 +1471,7 @@
           (fixed ? "" : ' <span class="bi-chip-remove" data-action="remove-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Retirer ' + esc(p.char.name) + '">&times;</span>') +
           "</button>"
         );
-      }).join("") + accountBtn + "</div>"
+      }).join("") + "</div>"
     );
   }
 
