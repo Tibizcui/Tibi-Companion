@@ -1466,11 +1466,19 @@
     return (
       '<div class="addon-chips bi-profiles" role="group" aria-label="Personnages">' +
       accountBtn +
-      profiles.map(function (p) {
+      profiles.map(function (p, i) {
         var color = classColor(p.char.class);
+        // Fleches monter/descendre (demande utilisateur 2026-09-17, meme
+        // interaction que le selecteur en jeu, cf. Stats/UI.lua
+        // BuildFlatDropdown) : absentes en mode fixe (page figee, pas de
+        // localStorage a modifier), desactivees en butee (1er/dernier).
+        var moveBtns = fixed ? "" :
+          ' <span class="bi-chip-move up' + (i === 0 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="up" role="button" tabindex="0" aria-label="Monter ' + esc(p.char.name) + '">^</span>' +
+          '<span class="bi-chip-move down' + (i === profiles.length - 1 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="down" role="button" tabindex="0" aria-label="Descendre ' + esc(p.char.name) + '">v</span>';
         return (
-          '<button type="button" class="addon-chip bi-profile-chip' + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
+          '<button type="button" class="addon-chip bi-profile-chip' + (fixed ? "" : " movable") + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
           '<i class="bi-chip-dot" style="background:' + color + '"></i>' + esc(p.char.name) +
+          moveBtns +
           (fixed ? "" : ' <span class="bi-chip-remove" data-action="remove-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Retirer ' + esc(p.char.name) + '">&times;</span>') +
           "</button>"
         );
@@ -1489,7 +1497,7 @@
     var uid = ++uidCounter;
 
     var state = {
-      profiles: options.profiles || [],
+      profiles: sortProfiles(options.profiles || []),
       activeId: null,
       compareIds: [],
       compareMode: false,
@@ -1717,6 +1725,19 @@
         state.compareIds = state.compareIds.filter(function (cid) { return cid !== id; });
         render();
       }
+      else if (action === "move-profile") {
+        e.stopPropagation();
+        var moveId = el.dataset.id;
+        var dir = el.dataset.dir === "down" ? 1 : -1;
+        var idx = state.profiles.findIndex(function (p) { return p.id === moveId; });
+        var swapWith = idx + dir;
+        if (idx === -1 || swapWith < 0 || swapWith >= state.profiles.length) return;
+        var reordered = state.profiles.slice();
+        var tmp = reordered[idx]; reordered[idx] = reordered[swapWith]; reordered[swapWith] = tmp;
+        state.profiles = reordered;
+        saveProfileOrder(reordered.map(function (p) { return p.id; }));
+        render();
+      }
       else if (action === "toggle-compare") { state.compareMode = !state.compareMode; render(); }
       else if (action === "sort-table") {
         var key = el.dataset.key;
@@ -1763,8 +1784,8 @@
     return {
       render: render,
       setProfiles: function (profiles, activeId) {
-        state.profiles = profiles;
-        state.activeId = activeId || (profiles[0] && profiles[0].id) || null;
+        state.profiles = sortProfiles(profiles);
+        state.activeId = activeId || (state.profiles[0] && state.profiles[0].id) || null;
         render();
       },
     };
@@ -1782,6 +1803,40 @@
   }
   function saveStoredCodes(list) {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(list.slice(-MAX_PROFILES))); } catch (e) {}
+  }
+
+  // Ordre personnalise des personnages (fleches monter/descendre, demande
+  // utilisateur 2026-09-17) : purement local a cette installation de
+  // Companion, independant de StatsDB.charOrder cote addon (que Companion ne
+  // peut de toute facon pas reecrire depuis ici). Juste une liste d'ids
+  // ("Nom-Royaume") dans l'ordre voulu.
+  var PROFILE_ORDER_KEY = "tibisuite-dashboard-profile-order-v1";
+  function loadProfileOrder() {
+    try {
+      var raw = localStorage.getItem(PROFILE_ORDER_KEY);
+      var list = raw ? JSON.parse(raw) : [];
+      return Array.isArray(list) ? list : [];
+    } catch (e) { return []; }
+  }
+  function saveProfileOrder(order) {
+    try { localStorage.setItem(PROFILE_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+  }
+
+  // Applique l'ordre persiste a une liste de profils fraichement (re)chargee
+  // (paste, sync live, merge addon+API) : les ids connus d'abord dans l'ordre
+  // sauvegarde, puis tout profil pas encore vu (nouveau personnage) ajoute a
+  // la fin dans son ordre naturel - jamais perdu, juste pas encore range.
+  function sortProfiles(profiles) {
+    var order = loadProfileOrder();
+    if (!order.length) return profiles;
+    var byId = {};
+    profiles.forEach(function (p) { byId[p.id] = p; });
+    var sorted = [], seen = {};
+    order.forEach(function (id) {
+      if (byId[id] && !seen[id]) { sorted.push(byId[id]); seen[id] = true; }
+    });
+    profiles.forEach(function (p) { if (!seen[p.id]) sorted.push(p); });
+    return sorted;
   }
 
   // Retourne TOUJOURS un tableau de profils (1 en v1, potentiellement
