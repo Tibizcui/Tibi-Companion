@@ -1917,6 +1917,21 @@
       var profiles = Object.keys(chars).map(function (key) {
         var entry = chars[key] || {};
         var char = entry.char || {};
+        // Repli sur la cle du dictionnaire ("Nom-Royaume", cf. SX.GetCharKeys
+        // cote addon) si char.name/char.realm sont vides - constate en jeu
+        // (2026-09-17) : le personnage COURANT peut s'exporter avec un objet
+        // char.name/char.realm vides si UnitName()/GetRealmName() renvoient
+        // vide au moment exact du logout (chargement/changement de royaume en
+        // cours), alors que la cle du dictionnaire, ecrite plus tot par
+        // StatsDB, reste toujours correcte. Sans ce repli, le personnage
+        // remontait comme un chip fantome "?-?" sans nom.
+        if (!char.name || !char.realm) {
+          var sep = key.indexOf("-");
+          if (sep > 0) {
+            if (!char.name) char.name = key.slice(0, sep);
+            if (!char.realm) char.realm = key.slice(sep + 1);
+          }
+        }
         return {
           id: (char.name || "?") + "-" + (char.realm || "?"), code: code, char: char,
           days: entry.days || {}, professions: entry.professions || {},
