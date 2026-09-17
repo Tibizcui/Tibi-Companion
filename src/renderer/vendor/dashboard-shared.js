@@ -1458,31 +1458,48 @@
     // dore (demande utilisateur, libelle harmonise avec le charKey
     // "__account__"/"Compte (tous personnages)" du module Stats en jeu) :
     // n'a de sens qu'a partir de 2 personnages charges, sinon ce serait un
-    // doublon strict du seul personnage disponible.
+    // doublon strict du seul personnage disponible. Compte sur TOUS les
+    // profils (profiles, pas visibleProfiles) : masquer un personnage de la
+    // rangee ne doit jamais le sortir du total (demande utilisateur
+    // 2026-09-17, cf. le X qui masque au lieu de desynchroniser plus bas).
     var accountBtn = profiles.length >= 2
       ? '<button type="button" class="addon-chip bi-account-chip' + (activeId === ALL_PROFILES_ID ? " active" : "") + '" data-action="select-account" aria-pressed="' + (activeId === ALL_PROFILES_ID) + '" title="Additionne les statistiques de tous les personnages charges">Compte</button>' +
         '<span class="bi-chip-sep" aria-hidden="true">|</span>'
       : "";
+    // X = masquer de la rangee (localStorage, cf. PROFILE_HIDDEN_KEY), jamais
+    // desynchroniser : sur un compte auto-synchronise ("+ Compte WoW"), un
+    // seul export regroupe tous les personnages, donc "retirer" un
+    // personnage effacait auparavant TOUT le code du stockage local jusqu'au
+    // prochain /reload - source de confusion (constat utilisateur
+    // 2026-09-17 : "Compte" ne comptait plus les personnages fermes).
+    var hidden = fixed ? {} : loadHiddenProfiles();
+    var visibleProfiles = profiles.filter(function (p) { return !hidden[p.id]; });
+    var hiddenCount = profiles.length - visibleProfiles.length;
+    var showAllBtn = hiddenCount > 0
+      ? ' <button type="button" class="addon-chip bi-chip-showall" data-action="show-all-profiles" title="Reafficher les personnages masques">+' + hiddenCount + " masque" + (hiddenCount > 1 ? "s" : "") + "</button>"
+      : "";
     return (
       '<div class="addon-chips bi-profiles" role="group" aria-label="Personnages">' +
       accountBtn +
-      profiles.map(function (p, i) {
+      visibleProfiles.map(function (p, i) {
         var color = classColor(p.char.class);
         // Fleches monter/descendre (demande utilisateur 2026-09-17, meme
         // interaction que le selecteur en jeu, cf. Stats/UI.lua
         // BuildFlatDropdown) : absentes en mode fixe (page figee, pas de
-        // localStorage a modifier), desactivees en butee (1er/dernier).
+        // localStorage a modifier), desactivees en butee (1er/dernier parmi
+        // les personnages VISIBLES - un voisin masque ne compte pas comme
+        // butee, cf. l'action move-profile qui raisonne pareil).
         var moveBtns = fixed ? "" :
           ' <span class="bi-chip-move up' + (i === 0 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="up" role="button" tabindex="0" aria-label="Monter ' + esc(p.char.name) + '">^</span>' +
-          '<span class="bi-chip-move down' + (i === profiles.length - 1 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="down" role="button" tabindex="0" aria-label="Descendre ' + esc(p.char.name) + '">v</span>';
+          '<span class="bi-chip-move down' + (i === visibleProfiles.length - 1 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="down" role="button" tabindex="0" aria-label="Descendre ' + esc(p.char.name) + '">v</span>';
         return (
           '<button type="button" class="addon-chip bi-profile-chip' + (fixed ? "" : " movable") + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
           '<i class="bi-chip-dot" style="background:' + color + '"></i>' + esc(p.char.name) +
           moveBtns +
-          (fixed ? "" : ' <span class="bi-chip-remove" data-action="remove-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Retirer ' + esc(p.char.name) + '">&times;</span>') +
+          (fixed ? "" : ' <span class="bi-chip-remove" data-action="hide-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Masquer ' + esc(p.char.name) + '">&times;</span>') +
           "</button>"
         );
-      }).join("") + "</div>"
+      }).join("") + showAllBtn + "</div>"
     );
   }
 
@@ -1716,24 +1733,44 @@
       else if (action === "overlay") { state.overlay = !state.overlay; render(); }
       else if (action === "select-profile") { state.activeId = el.dataset.id; render(); }
       else if (action === "select-account") { state.activeId = ALL_PROFILES_ID; render(); }
-      else if (action === "remove-profile") {
+      else if (action === "hide-profile") {
+        // Masque de la rangee (localStorage) - NE retire plus le personnage
+        // de state.profiles ni du stockage des codes : "Compte" doit
+        // continuer a l'additionner (demande utilisateur 2026-09-17, cf.
+        // profileChipsHtml pour le contexte complet de ce changement).
         e.stopPropagation();
         var id = el.dataset.id;
-        if (options.onRemove) options.onRemove(id);
-        state.profiles = state.profiles.filter(function (p) { return p.id !== id; });
-        if (state.activeId === id) state.activeId = state.profiles.length ? state.profiles[0].id : null;
-        state.compareIds = state.compareIds.filter(function (cid) { return cid !== id; });
+        var hiddenSet = loadHiddenProfiles();
+        hiddenSet[id] = true;
+        saveHiddenProfiles(hiddenSet);
+        if (state.activeId === id) {
+          var stillVisible = state.profiles.filter(function (p) { return !hiddenSet[p.id]; });
+          state.activeId = stillVisible.length ? stillVisible[0].id : ALL_PROFILES_ID;
+        }
+        render();
+      }
+      else if (action === "show-all-profiles") {
+        saveHiddenProfiles({});
         render();
       }
       else if (action === "move-profile") {
+        // Raisonne sur les personnages VISIBLES (un voisin masque ne doit
+        // pas etre "saute" silencieusement) mais persiste l'ordre complet de
+        // state.profiles, masques inclus, pour ne pas perdre leur position
+        // si l'utilisateur les reaffiche plus tard.
         e.stopPropagation();
         var moveId = el.dataset.id;
         var dir = el.dataset.dir === "down" ? 1 : -1;
-        var idx = state.profiles.findIndex(function (p) { return p.id === moveId; });
-        var swapWith = idx + dir;
-        if (idx === -1 || swapWith < 0 || swapWith >= state.profiles.length) return;
+        var hiddenForMove = loadHiddenProfiles();
+        var visibleForMove = state.profiles.filter(function (p) { return !hiddenForMove[p.id]; });
+        var vIdx = visibleForMove.findIndex(function (p) { return p.id === moveId; });
+        var vSwapWith = vIdx + dir;
+        if (vIdx === -1 || vSwapWith < 0 || vSwapWith >= visibleForMove.length) return;
+        var idA = visibleForMove[vIdx].id, idB = visibleForMove[vSwapWith].id;
+        var realIdxA = state.profiles.findIndex(function (p) { return p.id === idA; });
+        var realIdxB = state.profiles.findIndex(function (p) { return p.id === idB; });
         var reordered = state.profiles.slice();
-        var tmp = reordered[idx]; reordered[idx] = reordered[swapWith]; reordered[swapWith] = tmp;
+        var tmp = reordered[realIdxA]; reordered[realIdxA] = reordered[realIdxB]; reordered[realIdxB] = tmp;
         state.profiles = reordered;
         saveProfileOrder(reordered.map(function (p) { return p.id; }));
         render();
@@ -1764,7 +1801,7 @@
     });
     container.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" && e.key !== " ") return;
-      var el = e.target.closest('[data-action="remove-profile"]');
+      var el = e.target.closest('[data-action="hide-profile"], [data-action="move-profile"]');
       if (!el) return;
       e.preventDefault();
       el.click();
@@ -1839,6 +1876,22 @@
     return sorted;
   }
 
+  // Personnages masques de la rangee de chips (X, demande utilisateur
+  // 2026-09-17) : { id: true, ... }, purement local a cette installation.
+  // Ne retire JAMAIS un personnage de state.profiles ni du stockage des
+  // codes - "Compte" continue de tout additionner, cf. profileChipsHtml.
+  var PROFILE_HIDDEN_KEY = "tibisuite-dashboard-profile-hidden-v1";
+  function loadHiddenProfiles() {
+    try {
+      var raw = localStorage.getItem(PROFILE_HIDDEN_KEY);
+      var obj = raw ? JSON.parse(raw) : {};
+      return (obj && typeof obj === "object" && !Array.isArray(obj)) ? obj : {};
+    } catch (e) { return {}; }
+  }
+  function saveHiddenProfiles(hidden) {
+    try { localStorage.setItem(PROFILE_HIDDEN_KEY, JSON.stringify(hidden)); } catch (e) {}
+  }
+
   // Retourne TOUJOURS un tableau de profils (1 en v1, potentiellement
   // plusieurs en v2 - un code d'export = tout le compte).
   function envelopeToProfiles(envelope, code) {
@@ -1895,19 +1948,16 @@
     var stored = loadStoredCodes();
     var profiles = [];
     stored.forEach(function (entry) { profiles = profiles.concat(safeDecode(entry.code)); });
+    // Pas d'onRemove : le X de la rangee masque seulement (localStorage,
+    // cf. hide-profile / PROFILE_HIDDEN_KEY), il ne touche plus jamais aux
+    // codes stockes ici - un code d'export "compte" (schema v2) regroupe de
+    // toute facon plusieurs personnages dans le MEME code, donc "retirer"
+    // un seul personnage effacait auparavant tout le code jusqu'au prochain
+    // /reload (confusion constatee 2026-09-17 : "Compte" ne recomptait plus
+    // les personnages "fermes").
     var app = createApp(container, {
       fixed: false,
       profiles: profiles,
-      // Un code d'export "compte" (schema v2) regroupe plusieurs personnages
-      // dans le MEME code : retirer un seul personnage retire le code entier
-      // (les autres personnages qu'il contient partent avec) - l'utilisateur
-      // recolle un export a jour pour les recuperer, desormais trivial
-      // puisqu'un seul code couvre tout le compte.
-      onRemove: function (id) {
-        saveStoredCodes(loadStoredCodes().filter(function (e) {
-          return safeDecode(e.code).every(function (p) { return p.id !== id; });
-        }));
-      },
     });
     app.render();
 
@@ -1939,6 +1989,8 @@
     }
     app.clearAll = function () {
       saveStoredCodes([]);
+      saveProfileOrder([]);
+      saveHiddenProfiles({});
       app.setProfiles([], null);
     };
     return app;

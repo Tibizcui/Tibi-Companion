@@ -794,6 +794,10 @@ a{color:inherit}
 .bi-account-chip.active{background:linear-gradient(135deg,rgba(228,182,74,.16),rgba(228,182,74,.06));
   border-color:var(--gold-line);color:var(--gold-soft)}
 .bi-chip-sep{align-self:center;color:var(--gold);font-weight:700;opacity:.7;user-select:none}
+/* Chip "+N masques" (demande utilisateur 2026-09-17) : reaffiche tout d'un
+   clic, style delibere en retrait (bordure pointillee) pour ne pas se
+   confondre avec un vrai personnage cliquable au meme titre que les autres. */
+.bi-chip-showall{border-style:dashed;font-style:italic}
 /* Espacement vertical plus genereux quand la liste de personnages passe sur
    plusieurs lignes (jusqu'a MAX_PROFILES=8, cf. dashboard-shared.js) - sans
    toucher au gap horizontal des chips ni aux autres usages de .addon-chips
