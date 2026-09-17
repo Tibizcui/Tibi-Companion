@@ -1049,7 +1049,10 @@
   // BuildEventListDetail cote addon. Les 8 cartes ont desormais toutes un
   // journal d'evenements.
   // ==========================================================================
-  var EVENT_LOG_MAX_ROWS = 300;
+  // Demande utilisateur (2026-09-17) : toujours les 10 evenements les plus
+  // recents, quelle que soit la carte - avant, jusqu'a 300 lignes rendaient
+  // le detail illisible sur les metriques a volume eleve (Temps joue, Or).
+  var EVENT_LOG_MAX_ROWS = 10;
   var EVENT_METRIC_LABELS = { quests: "Quetes", dungeons: "Donjons & M+", raids: "Raids", delves: "Gouffres",
                                repGained: "Reputation gagnee", gold: "Or", played: "Temps joue", profGained: "Points de metier gagnes" };
   // Traduction des valeurs BRUTES stockees par Core.lua (source de l'or,
