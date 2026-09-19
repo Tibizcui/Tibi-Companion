@@ -1558,7 +1558,15 @@
       // par defaut, cliquer sur la tuile deplie son detail complet.
       summaryExpanded: {},
     };
-    if (state.profiles.length) state.activeId = state.profiles[0].id;
+    // startOnAccount (Tibi Companion) : a l'ouverture on affiche le profil
+    // virtuel "Compte" (tous les personnages) plutot que le 1er personnage.
+    // Le chip "Compte" n'existe qu'a partir de 2 personnages (cf.
+    // profileChipsHtml) : en dessous, on retombe sur le personnage seul.
+    function defaultActiveId() {
+      if (!state.profiles.length) return null;
+      return (options.startOnAccount && state.profiles.length >= 2) ? ALL_PROFILES_ID : state.profiles[0].id;
+    }
+    if (state.profiles.length) state.activeId = defaultActiveId();
 
     function getActive() {
       if (state.activeId === ALL_PROFILES_ID) return buildAccountProfile(state.profiles);
@@ -1934,7 +1942,18 @@
       render: render,
       setProfiles: function (profiles, activeId) {
         state.profiles = sortProfiles(profiles, fixed);
-        state.activeId = activeId || (state.profiles[0] && state.profiles[0].id) || null;
+        if (activeId) {
+          state.activeId = activeId;
+        } else if (options.startOnAccount) {
+          // Chaque synchro rappelle setProfiles : on garde la vue courante si
+          // elle est encore valide au lieu de la renvoyer sur un personnage.
+          var cur = state.activeId;
+          var valid = (cur === ALL_PROFILES_ID && state.profiles.length >= 2) ||
+            state.profiles.some(function (p) { return p.id === cur; });
+          if (!valid) state.activeId = defaultActiveId();
+        } else {
+          state.activeId = (state.profiles[0] && state.profiles[0].id) || null;
+        }
         render();
       },
     };
@@ -2111,6 +2130,7 @@
     var app = createApp(container, {
       fixed: false,
       profiles: profiles,
+      startOnAccount: !!(formEls && formEls.startOnAccount),
     });
     app.render();
 
@@ -2131,7 +2151,7 @@
           saveStoredCodes(list);
           var refreshed = [];
           loadStoredCodes().forEach(function (entry) { refreshed = refreshed.concat(safeDecode(entry.code)); });
-          app.setProfiles(refreshed, newIds[0]);
+          app.setProfiles(refreshed, formEls.startOnAccount ? undefined : newIds[0]);
           if (formEls.onSuccess) formEls.onSuccess();
         } catch (err) {
           if (formEls.onError) formEls.onError(err);

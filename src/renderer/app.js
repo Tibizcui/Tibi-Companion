@@ -33,6 +33,7 @@
     dashApp = window.TibiDashboard.mountGeneric(dashResult, {
       input: dashInput,
       submit: dashGo,
+      startOnAccount: true,
       onSuccess: function () {
         dashFormError.innerHTML = "";
         dashInput.value = "";
