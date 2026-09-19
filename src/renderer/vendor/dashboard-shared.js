@@ -671,7 +671,8 @@
     var tail = [char.spec, char.realm].filter(Boolean).join(" &middot; ");
     return (
       '<div class="dash-banner' + (opts.compact ? " dash-banner--compact" : "") + '">' +
-        '<span class="dash-banner-level">[' + esc(char.level != null ? char.level : "?") + "]</span> " +
+        // Pas de niveau (ex. profil virtuel "Compte") : rien plutot qu'un "[?]".
+        (char.level != null ? '<span class="dash-banner-level">[' + esc(char.level) + "]</span> " : "") +
         '<span class="dash-banner-name" style="color:' + color + '">' + esc(char.name || "?") + "</span> " +
         (char.ilvl ? '<span class="dash-banner-ilvl">[' + esc(char.ilvl) + "]</span> " : "") +
         (tail ? '<span class="dash-banner-tail">&mdash; ' + tail + "</span>" : "") +
@@ -928,6 +929,24 @@
     return parts.join(" &middot; ");
   }
 
+  // Memes icones que les cartes de l'addon Stats (CARD_ICONS, Stats/UI.lua),
+  // servies par le meme CDN que l'icone des hauts faits et des metiers. Les
+  // quetes utilisent la texture "Interface\GossipFrame\AvailableQuestIcon"
+  // (le "!" dore) qui n'existe pas comme icone de CDN : redessinee en SVG.
+  var KPI_ICONS = {
+    played: "inv_misc_pocketwatch_01", gold: "inv_misc_coin_01", dungeons: "inv_misc_map_01",
+    raids: "inv_misc_head_dragon_01", delves: "inv_misc_gem_01",
+    repGained: "achievement_reputation_01", profGained: "inv_misc_wrench_01",
+  };
+  function kpiIconHtml(metric) {
+    if (metric === "quests") {
+      return '<svg class="kpi-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6.4 1.5h3.2l-.7 8.2H7.1zM8 11.3a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="#ffd100"/></svg>';
+    }
+    return KPI_ICONS[metric]
+      ? '<img class="kpi-icon" src="https://wow.zamimg.com/images/wow/icons/medium/' + KPI_ICONS[metric] + '.jpg" alt="" loading="lazy">'
+      : "";
+  }
+
   function renderKpis(profile, win) {
     var cur = sliceDays(profile.days, win.from, win.to);
     var prev = win.prevFrom != null ? sliceDays(profile.days, win.prevFrom, win.prevTo) : null;
@@ -966,7 +985,7 @@
         return (
           '<div class="kpi-card' + (clickable ? " kpi-card--clickable" : "") + '" style="border-top-color:' + metricColor + '"' +
             (clickable ? ' data-action="toggle-event-detail" data-value="' + c.metric + '"' : "") + '>' +
-            '<div class="kpi-top"><span class="kpi-label">' + esc(c.label) + "</span>" + buildSparkline(vals, { color: metricColor }) + "</div>" +
+            '<div class="kpi-top"><span class="kpi-title">' + kpiIconHtml(c.metric) + '<span class="kpi-label">' + esc(c.label) + "</span></span>" + buildSparkline(vals, { color: metricColor }) + "</div>" +
             '<div class="kpi-value ' + (c.cls || "") + '"' + valueStyle + '>' + c.value + "</div>" +
             (c.sub ? '<div class="kpi-sub">' + c.sub + "</div>" : "") +
             deltaBadge(c.cur, c.prev) +
@@ -1478,28 +1497,25 @@
     var showAllBtn = hiddenCount > 0
       ? ' <button type="button" class="addon-chip bi-chip-showall" data-action="show-all-profiles" title="Reafficher les personnages masques">+' + hiddenCount + " masque" + (hiddenCount > 1 ? "s" : "") + "</button>"
       : "";
+    // Le glisser-deposer (cf. onChipPointerMove) remplace les anciennes
+    // fleches monter/descendre : on l'annonce sous la rangee, sinon rien ne
+    // laisse deviner qu'un chip se deplace.
+    var dragHint = visibleProfiles.length >= 2
+      ? '<p class="bi-drag-hint">Astuce : glisse-depose les personnages pour changer leur ordre.</p>'
+      : "";
     return (
+      '<div class="bi-profiles-block">' +
       '<div class="addon-chips bi-profiles" role="group" aria-label="Personnages">' +
       accountBtn +
-      visibleProfiles.map(function (p, i) {
+      visibleProfiles.map(function (p) {
         var color = classColor(p.char.class);
-        // Fleches monter/descendre (demande utilisateur 2026-09-17, meme
-        // interaction que le selecteur en jeu, cf. Stats/UI.lua
-        // BuildFlatDropdown) : absentes en mode fixe (page figee, pas de
-        // localStorage a modifier), desactivees en butee (1er/dernier parmi
-        // les personnages VISIBLES - un voisin masque ne compte pas comme
-        // butee, cf. l'action move-profile qui raisonne pareil).
-        var moveBtns = fixed ? "" :
-          ' <span class="bi-chip-move up' + (i === 0 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="up" role="button" tabindex="0" aria-label="Monter ' + esc(p.char.name) + '">^</span>' +
-          '<span class="bi-chip-move down' + (i === visibleProfiles.length - 1 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="down" role="button" tabindex="0" aria-label="Descendre ' + esc(p.char.name) + '">v</span>';
         return (
-          '<button type="button" class="addon-chip bi-profile-chip' + (fixed ? "" : " movable") + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" title="Glisse-depose pour changer l\'ordre" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
+          '<button type="button" class="addon-chip bi-profile-chip' + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" title="Glisse-depose pour changer l\'ordre" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
           '<i class="bi-chip-dot" style="background:' + color + '"></i>' + esc(p.char.name) +
-          moveBtns +
           (fixed ? "" : ' <span class="bi-chip-remove" data-action="hide-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Masquer ' + esc(p.char.name) + '">&times;</span>') +
           "</button>"
         );
-      }).join("") + showAllBtn + "</div>"
+      }).join("") + showAllBtn + "</div>" + dragHint + "</div>"
     );
   }
 
@@ -1753,28 +1769,6 @@
         saveHiddenProfiles({});
         render();
       }
-      else if (action === "move-profile") {
-        // Raisonne sur les personnages VISIBLES (un voisin masque ne doit
-        // pas etre "saute" silencieusement) mais persiste l'ordre complet de
-        // state.profiles, masques inclus, pour ne pas perdre leur position
-        // si l'utilisateur les reaffiche plus tard.
-        e.stopPropagation();
-        var moveId = el.dataset.id;
-        var dir = el.dataset.dir === "down" ? 1 : -1;
-        var hiddenForMove = loadHiddenProfiles();
-        var visibleForMove = state.profiles.filter(function (p) { return !hiddenForMove[p.id]; });
-        var vIdx = visibleForMove.findIndex(function (p) { return p.id === moveId; });
-        var vSwapWith = vIdx + dir;
-        if (vIdx === -1 || vSwapWith < 0 || vSwapWith >= visibleForMove.length) return;
-        var idA = visibleForMove[vIdx].id, idB = visibleForMove[vSwapWith].id;
-        var realIdxA = state.profiles.findIndex(function (p) { return p.id === idA; });
-        var realIdxB = state.profiles.findIndex(function (p) { return p.id === idB; });
-        var reordered = state.profiles.slice();
-        var tmp = reordered[realIdxA]; reordered[realIdxA] = reordered[realIdxB]; reordered[realIdxB] = tmp;
-        state.profiles = reordered;
-        saveProfileOrder(reordered.map(function (p) { return p.id; }), fixed);
-        render();
-      }
       else if (action === "toggle-compare") { state.compareMode = !state.compareMode; render(); }
       else if (action === "sort-table") {
         var key = el.dataset.key;
@@ -1801,7 +1795,7 @@
     });
     container.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" && e.key !== " ") return;
-      var el = e.target.closest('[data-action="hide-profile"], [data-action="move-profile"]');
+      var el = e.target.closest('[data-action="hide-profile"]');
       if (!el) return;
       e.preventDefault();
       el.click();
@@ -1860,7 +1854,7 @@
     }
     function applyChipReorder(id, target) {
       // Reordonne les personnages VISIBLES, en gardant les masques (mode
-      // "Mon Dashboard") a leur place, comme l'action move-profile.
+      // "Mon Dashboard") a leur place.
       var hiddenMap = fixed ? {} : loadHiddenProfiles();
       var ids = state.profiles.filter(function (p) { return !hiddenMap[p.id]; })
         .map(function (p) { return p.id; })
@@ -1906,7 +1900,7 @@
       if (e.button !== undefined && e.button !== 0) return;
       var chip = e.target.closest(".bi-profile-chip");
       if (!chip || !container.contains(chip)) return;
-      if (e.target.closest('[data-action="move-profile"], [data-action="hide-profile"]')) return;
+      if (e.target.closest('[data-action="hide-profile"]')) return;
       if (chipDrag) endChipDrag();
       chipDrag = { chip: chip, id: chip.dataset.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
                    active: false, touch: e.pointerType === "touch", target: null, timer: null };
