@@ -1493,7 +1493,7 @@
           ' <span class="bi-chip-move up' + (i === 0 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="up" role="button" tabindex="0" aria-label="Monter ' + esc(p.char.name) + '">^</span>' +
           '<span class="bi-chip-move down' + (i === visibleProfiles.length - 1 ? " disabled" : "") + '" data-action="move-profile" data-id="' + esc(p.id) + '" data-dir="down" role="button" tabindex="0" aria-label="Descendre ' + esc(p.char.name) + '">v</span>';
         return (
-          '<button type="button" class="addon-chip bi-profile-chip' + (fixed ? "" : " movable") + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
+          '<button type="button" class="addon-chip bi-profile-chip' + (fixed ? "" : " movable") + (p.id === activeId ? " active" : "") + '" data-action="select-profile" data-id="' + esc(p.id) + '" title="Glisse-depose pour changer l\'ordre" style="--chip-color:' + color + '" aria-pressed="' + (p.id === activeId) + '">' +
           '<i class="bi-chip-dot" style="background:' + color + '"></i>' + esc(p.char.name) +
           moveBtns +
           (fixed ? "" : ' <span class="bi-chip-remove" data-action="hide-profile" data-id="' + esc(p.id) + '" role="button" tabindex="0" aria-label="Masquer ' + esc(p.char.name) + '">&times;</span>') +
@@ -1514,7 +1514,7 @@
     var uid = ++uidCounter;
 
     var state = {
-      profiles: sortProfiles(options.profiles || []),
+      profiles: sortProfiles(options.profiles || [], fixed),
       activeId: null,
       compareIds: [],
       compareMode: false,
@@ -1772,7 +1772,7 @@
         var reordered = state.profiles.slice();
         var tmp = reordered[realIdxA]; reordered[realIdxA] = reordered[realIdxB]; reordered[realIdxB] = tmp;
         state.profiles = reordered;
-        saveProfileOrder(reordered.map(function (p) { return p.id; }));
+        saveProfileOrder(reordered.map(function (p) { return p.id; }), fixed);
         render();
       }
       else if (action === "toggle-compare") { state.compareMode = !state.compareMode; render(); }
@@ -1806,6 +1806,124 @@
       e.preventDefault();
       el.click();
     });
+    // Glisser-deposer des chips de personnages (demande utilisateur
+    // 2026-09-19), en pointer events plutot qu'en HTML5 drag&drop : un
+    // <button draggable> reste capricieux selon les navigateurs, et les
+    // pointer events couvrent souris ET tactile (appui long ~350 ms pour ne
+    // pas voler le defilement de la page). Le chip suit le pointeur par
+    // transform, un filet dore marque l'emplacement cible, l'ordre n'est
+    // applique/persiste qu'au relachement.
+    var chipDrag = null;
+    var suppressChipClick = false;
+
+    function dragChips() {
+      return Array.prototype.slice.call(container.querySelectorAll(".bi-profile-chip"));
+    }
+    function clearDropMarkers() {
+      dragChips().forEach(function (c) { c.classList.remove("drop-before", "drop-after"); });
+    }
+    function locateDropTarget(x, y) {
+      var best = null, bestD = Infinity;
+      dragChips().forEach(function (c) {
+        if (c === chipDrag.chip) return;
+        var r = c.getBoundingClientRect();
+        var dx = x < r.left ? r.left - x : (x > r.right ? x - r.right : 0);
+        var dy = y < r.top ? r.top - y : (y > r.bottom ? y - r.bottom : 0);
+        // La distance verticale pese plus : a l'interieur d'une rangee on
+        // vise le voisin de la MEME rangee avant celui de la rangee du dessous.
+        var d = dx * dx + (dy * 3) * (dy * 3);
+        if (d < bestD) { bestD = d; best = { chip: c, after: x > r.left + r.width / 2 }; }
+      });
+      return best;
+    }
+    function blockTouchScroll(e) { if (chipDrag && chipDrag.active) e.preventDefault(); }
+    function beginChipDrag() {
+      chipDrag.active = true;
+      suppressChipClick = true;
+      chipDrag.chip.classList.add("dragging");
+      document.body.classList.add("bi-dragging");
+      document.addEventListener("touchmove", blockTouchScroll, { passive: false });
+    }
+    function endChipDrag() {
+      if (!chipDrag) return;
+      clearTimeout(chipDrag.timer);
+      document.removeEventListener("pointermove", onChipPointerMove);
+      document.removeEventListener("pointerup", onChipPointerUp);
+      document.removeEventListener("pointercancel", onChipPointerCancel);
+      document.removeEventListener("touchmove", blockTouchScroll);
+      document.body.classList.remove("bi-dragging");
+      chipDrag.chip.classList.remove("dragging");
+      chipDrag.chip.style.transform = "";
+      clearDropMarkers();
+      chipDrag = null;
+      setTimeout(function () { suppressChipClick = false; }, 0);
+    }
+    function applyChipReorder(id, target) {
+      // Reordonne les personnages VISIBLES, en gardant les masques (mode
+      // "Mon Dashboard") a leur place, comme l'action move-profile.
+      var hiddenMap = fixed ? {} : loadHiddenProfiles();
+      var ids = state.profiles.filter(function (p) { return !hiddenMap[p.id]; })
+        .map(function (p) { return p.id; })
+        .filter(function (x) { return x !== id; });
+      var ti = ids.indexOf(target.chip.dataset.id);
+      if (ti === -1) return false;
+      ids.splice(target.after ? ti + 1 : ti, 0, id);
+      var byId = {};
+      state.profiles.forEach(function (p) { byId[p.id] = p; });
+      var reordered = state.profiles.slice(), k = 0;
+      state.profiles.forEach(function (p, i) {
+        if (!hiddenMap[p.id]) reordered[i] = byId[ids[k++]];
+      });
+      state.profiles = reordered;
+      saveProfileOrder(reordered.map(function (p) { return p.id; }), fixed);
+      return true;
+    }
+    function onChipPointerMove(e) {
+      if (!chipDrag || e.pointerId !== chipDrag.pointerId) return;
+      var dx = e.clientX - chipDrag.startX, dy = e.clientY - chipDrag.startY;
+      if (!chipDrag.active) {
+        var dist = Math.sqrt(dx * dx + dy * dy);
+        if (chipDrag.touch) { if (dist > 10) endChipDrag(); return; }
+        if (dist < 6) return;
+        beginChipDrag();
+      }
+      chipDrag.chip.style.transform = "translate(" + dx + "px," + dy + "px)";
+      clearDropMarkers();
+      chipDrag.target = locateDropTarget(e.clientX, e.clientY);
+      if (chipDrag.target) chipDrag.target.chip.classList.add(chipDrag.target.after ? "drop-after" : "drop-before");
+    }
+    function onChipPointerUp(e) {
+      if (!chipDrag || e.pointerId !== chipDrag.pointerId) return;
+      var moved = chipDrag.active && chipDrag.target && applyChipReorder(chipDrag.id, chipDrag.target);
+      endChipDrag();
+      if (moved) render();
+    }
+    function onChipPointerCancel(e) {
+      if (!chipDrag || e.pointerId !== chipDrag.pointerId) return;
+      endChipDrag();
+    }
+    container.addEventListener("pointerdown", function (e) {
+      if (e.button !== undefined && e.button !== 0) return;
+      var chip = e.target.closest(".bi-profile-chip");
+      if (!chip || !container.contains(chip)) return;
+      if (e.target.closest('[data-action="move-profile"], [data-action="hide-profile"]')) return;
+      if (chipDrag) endChipDrag();
+      chipDrag = { chip: chip, id: chip.dataset.id, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY,
+                   active: false, touch: e.pointerType === "touch", target: null, timer: null };
+      if (chipDrag.touch) {
+        chipDrag.timer = setTimeout(function () {
+          if (chipDrag && !chipDrag.active) beginChipDrag();
+        }, 350);
+      }
+      document.addEventListener("pointermove", onChipPointerMove);
+      document.addEventListener("pointerup", onChipPointerUp);
+      document.addEventListener("pointercancel", onChipPointerCancel);
+    });
+    // Un glisser termine ne doit pas compter comme un clic de selection.
+    container.addEventListener("click", function (e) {
+      if (suppressChipClick && e.target.closest(".bi-profile-chip")) { e.stopPropagation(); e.preventDefault(); }
+    }, true);
+
     container.addEventListener("change", function (e) {
       var pick = e.target.closest('[data-action="compare-pick"]');
       if (pick) {
@@ -1821,7 +1939,7 @@
     return {
       render: render,
       setProfiles: function (profiles, activeId) {
-        state.profiles = sortProfiles(profiles);
+        state.profiles = sortProfiles(profiles, fixed);
         state.activeId = activeId || (state.profiles[0] && state.profiles[0].id) || null;
         render();
       },
@@ -1848,23 +1966,43 @@
   // peut de toute facon pas reecrire depuis ici). Juste une liste d'ids
   // ("Nom-Royaume") dans l'ordre voulu.
   var PROFILE_ORDER_KEY = "tibisuite-dashboard-profile-order-v1";
-  function loadProfileOrder() {
+  // Section "Donnee live Tibiscui" (mode fixe) : cle separee pour que
+  // reordonner ses chips ne touche pas l'ordre de "Mon Dashboard".
+  var PROFILE_ORDER_KEY_FIXED = "tibisuite-dashboard-profile-order-fixed-v1";
+  function loadProfileOrder(fixed) {
     try {
-      var raw = localStorage.getItem(PROFILE_ORDER_KEY);
+      var raw = localStorage.getItem(fixed ? PROFILE_ORDER_KEY_FIXED : PROFILE_ORDER_KEY);
       var list = raw ? JSON.parse(raw) : [];
       return Array.isArray(list) ? list : [];
     } catch (e) { return []; }
   }
-  function saveProfileOrder(order) {
-    try { localStorage.setItem(PROFILE_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+  function saveProfileOrder(order, fixed) {
+    try { localStorage.setItem(fixed ? PROFILE_ORDER_KEY_FIXED : PROFILE_ORDER_KEY, JSON.stringify(order)); } catch (e) {}
+  }
+
+  // Ordre par defaut de la section "Donnee live Tibiscui" (demande
+  // utilisateur 2026-09-19) : Tibiscui puis Tibizcui en tete, tous les autres
+  // ensuite dans leur ordre naturel. Simple base : un ordre choisi par le
+  // visiteur (glisser-deposer, cf. PROFILE_ORDER_KEY_FIXED) reste prioritaire.
+  var PRIORITY_NAMES = ["tibiscui", "tibizcui"];
+  function withPriorityFirst(profiles) {
+    var head = [], seen = {};
+    PRIORITY_NAMES.forEach(function (name) {
+      profiles.forEach(function (p) {
+        var n = String((p.char && p.char.name) || "").toLowerCase();
+        if (n === name && !seen[p.id]) { head.push(p); seen[p.id] = true; }
+      });
+    });
+    return head.concat(profiles.filter(function (p) { return !seen[p.id]; }));
   }
 
   // Applique l'ordre persiste a une liste de profils fraichement (re)chargee
   // (paste, sync live, merge addon+API) : les ids connus d'abord dans l'ordre
   // sauvegarde, puis tout profil pas encore vu (nouveau personnage) ajoute a
   // la fin dans son ordre naturel - jamais perdu, juste pas encore range.
-  function sortProfiles(profiles) {
-    var order = loadProfileOrder();
+  function sortProfiles(profiles, fixed) {
+    if (fixed) profiles = withPriorityFirst(profiles);
+    var order = loadProfileOrder(fixed);
     if (!order.length) return profiles;
     var byId = {};
     profiles.forEach(function (p) { byId[p.id] = p; });
@@ -1914,7 +2052,13 @@
 
     if (envelope.schema === 2) {
       var chars = data.chars || {};
-      var profiles = Object.keys(chars).map(function (key) {
+      var profiles = Object.keys(chars).filter(function (key) {
+        // Cles parasites du dictionnaire (ex. "charOrder", la liste d'ordre
+        // des personnages stockee a cote des vrais - constate 2026-09-19 :
+        // elle remontait en chip fantome vide) : un vrai personnage a toujours
+        // une cle "Nom-Royaume".
+        return key.indexOf("-") > 0;
+      }).map(function (key) {
         var entry = chars[key] || {};
         var char = entry.char || {};
         // Repli sur la cle du dictionnaire ("Nom-Royaume", cf. SX.GetCharKeys
