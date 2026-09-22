@@ -1368,6 +1368,39 @@
   }
 
   // ==========================================================================
+  // REPARTITION PAR PERSONNAGE (vue "Compte" uniquement)
+  // ----------------------------------------------------------------
+  // buildAccountProfile vide volontairement `professions` pour le profil
+  // virtuel "Compte" (pas de metier "sommable" entre personnages, voir sa
+  // note) : la colonne de gauche, a cote de l'historique journalier, restait
+  // donc vide des que "Compte" est actif. On y affiche a la place la
+  // contribution de chaque personnage sur la periode selectionnee (temps
+  // joue, quetes, or net) - la seule chose que la vue "Compte" peut montrer
+  // que la vue par personnage ne montre pas.
+  function renderAccountBreakdown(profiles, win) {
+    var rows = (profiles || []).map(function (p) {
+      var t = sumDays(sliceDays(p.days, win.from, win.to));
+      return { name: p.char.name, color: classColor(p.char.class), played: t.played || 0, quests: t.quests || 0, net: (t.goldGain || 0) - (t.goldSpent || 0) };
+    }).filter(function (r) { return r.played > 0 || r.quests > 0 || r.net !== 0; });
+    if (rows.length === 0) {
+      return '<p class="dash-empty">Aucune activite sur cette periode.</p>';
+    }
+    rows.sort(function (a, b) { return b.played - a.played; });
+    var maxPlayed = Math.max.apply(null, rows.map(function (r) { return r.played; })) || 1;
+    return '<div class="acct-grid">' + rows.map(function (r) {
+      var pct = Math.max(2, Math.round((r.played / maxPlayed) * 100));
+      return (
+        '<div class="acct-card">' +
+          '<div class="acct-head"><i class="bi-chip-dot" style="background:' + r.color + '"></i><span class="prof-name">' + esc(r.name) + "</span></div>" +
+          '<div class="prof-bar"><span style="width:' + pct + "%;background:linear-gradient(90deg," + r.color + "," + r.color + "80)\"></span></div>" +
+          '<div class="acct-nums"><span>' + fmtHours(r.played) + '</span><span>' + fmtNum(r.quests) + " quete" + (r.quests === 1 ? "" : "s") + '</span><span class="' +
+          (r.net >= 0 ? "pos" : "neg") + '">' + fmtGold(r.net) + "</span></div>" +
+        "</div>"
+      );
+    }).join("") + "</div>";
+  }
+
+  // ==========================================================================
   // COMPARAISON (2 profils)
   // ==========================================================================
   function renderComparison(profiles, ids, range, metricKey, uid) {
@@ -1681,7 +1714,9 @@
         metricLegendToggleHtml(PVP_METRIC_ORDER, OVERLAY_COLORS, state.pvpEnabledMetrics, "toggle-pvp-metric") + "</div>";
       var hasProfessions = active.professions && typeof active.professions === "object" && Object.keys(active.professions).length > 0;
       var profSection = "";
-      if (hasProfessions) {
+      if (active.id === ALL_PROFILES_ID) {
+        profSection = '<h3 class="dash-subtitle">Repartition par personnage</h3>' + renderAccountBreakdown(state.profiles, win);
+      } else if (hasProfessions) {
         var profExpansions = collectProfessionExpansions(active.professions);
         var profFilterBar = profExpansions.length > 1 ? professionFilterHtml(profExpansions, state.profFilter) : "";
         profSection = '<h3 class="dash-subtitle">Metiers</h3>' + profFilterBar + renderProfessions(active.professions, state.profFilter);
