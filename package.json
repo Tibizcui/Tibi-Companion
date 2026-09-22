@@ -1,7 +1,7 @@
 {
   "name": "tibi-companion",
   "productName": "Tibi Companion",
-  "version": "2.0.9",
+  "version": "2.0.10",
   "description": "Compagnon PC de TibiSuite : synchronise et affiche automatiquement ton dashboard de statistiques (module Stats) sans copier-coller de code.",
   "main": "src/main/main.js",
   "author": "Tibiscui",
