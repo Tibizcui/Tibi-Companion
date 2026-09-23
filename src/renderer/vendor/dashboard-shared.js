@@ -301,12 +301,13 @@
   // AGREGATION
   // ==========================================================================
   function sumDays(days) {
-    var out = { quests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, raids: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0,
+    var out = { quests: 0, worldQuests: 0, goldGain: 0, goldSpent: 0, played: 0, dungeons: 0, mplusCount: 0, raids: 0, delves: 0, repGained: 0, pvpKillsGained: 0, profGained: 0,
       bgPlayedGained: 0, bgWonGained: 0, arenaPlayedGained: 0, arenaWonGained: 0, dayCount: 0, activeDayCount: 0 };
     if (!days) return out;
     Object.keys(days).forEach(function (k) {
       var d = days[k] || {};
       out.quests += d.quests || 0;
+      out.worldQuests += d.worldQuests || 0;
       out.goldGain += d.goldGain || 0;
       out.goldSpent += d.goldSpent || 0;
       out.played += d.played || 0;
@@ -542,6 +543,7 @@
   // ==========================================================================
   var METRICS = {
     quests: { label: "Quetes", get: function (d) { return d.quests || 0; }, fmt: fmtNum, fmtY: function (v) { return fmtNum(v); } },
+    worldQuests: { label: "Expeditions", get: function (d) { return d.worldQuests || 0; }, fmt: fmtNum, fmtY: fmtNum },
     gold: { label: "Or (net/jour)", get: function (d) { return (d.goldGain || 0) - (d.goldSpent || 0); }, fmt: fmtGold, fmtY: fmtGoldShort },
     played: { label: "Temps joue", get: function (d) { return (d.played || 0) / 3600; }, fmt: function (v) { return fmtHours(v * 3600); }, fmtY: function (v) { return v.toFixed(0) + "h"; } },
     dungeons: { label: "Donjons & M+", get: function (d) { return (d.dungeons || 0) + ((d.mplus && d.mplus.length) || 0); }, fmt: fmtNum, fmtY: fmtNum },
@@ -560,7 +562,7 @@
   // le reste dans son ordre precedent. PVP (adversaires tues/champs de
   // bataille/arenes) vit dans son propre graphique dedie (PVP_METRIC_ORDER
   // plus bas), pas ici.
-  var METRIC_ORDER = ["played", "quests", "gold", "dungeons", "raids", "delves", "repGained", "profGained"];
+  var METRIC_ORDER = ["played", "quests", "worldQuests", "gold", "dungeons", "raids", "delves", "repGained", "profGained"];
 
   // Graphique PVP dedie : toujours superpose (pas de mode une-seule-metrique,
   // 5 courbes restent lisibles).
@@ -572,7 +574,7 @@
   // (UI.lua, OVERLAY_COLORS / PVP_OVERLAY_COLORS).
   var OVERLAY_COLORS = {
     quests: "#4fd1c5", gold: "#f4d68a", played: "#7c9eff", dungeons: "#ff8a8a", raids: "#e0975c",
-    delves: "#b389f4", repGained: "#6ee7b7", profGained: "#ffb454",
+    delves: "#b389f4", repGained: "#6ee7b7", profGained: "#ffb454", worldQuests: "#a3e635",
     pvpKillsGained: "#ff6ec7", bgPlayedGained: "#7c9eff", bgWonGained: "#6ee7b7",
     arenaPlayedGained: "#ffb454", arenaWonGained: "#b389f4",
   };
@@ -937,6 +939,7 @@
     played: "inv_misc_pocketwatch_01", gold: "inv_misc_coin_01", dungeons: "inv_misc_map_01",
     raids: "inv_misc_head_dragon_01", delves: "inv_misc_gem_01",
     repGained: "achievement_reputation_01", profGained: "inv_misc_wrench_01",
+    worldQuests: "inv_misc_spyglass_03",
   };
   function kpiIconHtml(metric) {
     if (metric === "quests") {
@@ -958,6 +961,7 @@
     var defs = [
       { key: "played", label: "Temps joue", value: fmtHours(t.played), cur: t.played, prev: p ? p.played : null, sub: t.dayCount ? (fmtHours(t.played / t.dayCount) + " / jour en moyenne") : "", metric: "played" },
       { key: "quests", label: "Quetes completees", value: fmtNum(t.quests), cur: t.quests, prev: p ? p.quests : null, metric: "quests" },
+      { key: "worldQuests", label: "Expeditions", value: fmtNum(t.worldQuests), cur: t.worldQuests, prev: p ? p.worldQuests : null, metric: "worldQuests" },
       { key: "gold", label: "Or (net)", value: fmtGold(net), cur: net, prev: prevNet, cls: net >= 0 ? "pos" : "neg", sub: fmtGold(t.goldGain) + " gagne &middot; " + fmtGold(t.goldSpent) + " depense", metric: "gold" },
       { key: "dungeons", label: "Donjons & M+", value: fmtNum(t.dungeons + t.mplusCount), cur: t.dungeons + t.mplusCount, prev: p ? (p.dungeons + p.mplusCount) : null, sub: t.dungeons + " donjons &middot; " + t.mplusCount + " M+", metric: "dungeons" },
       { key: "raids", label: "Raids", value: fmtNum(t.raids), cur: t.raids, prev: p ? p.raids : null, metric: "raids" },
@@ -1072,7 +1076,7 @@
   // recents, quelle que soit la carte - avant, jusqu'a 300 lignes rendaient
   // le detail illisible sur les metriques a volume eleve (Temps joue, Or).
   var EVENT_LOG_MAX_ROWS = 10;
-  var EVENT_METRIC_LABELS = { quests: "Quetes", dungeons: "Donjons & M+", raids: "Raids", delves: "Gouffres",
+  var EVENT_METRIC_LABELS = { quests: "Quetes", worldQuests: "Expeditions", dungeons: "Donjons & M+", raids: "Raids", delves: "Gouffres",
                                repGained: "Reputation gagnee", gold: "Or", played: "Temps joue", profGained: "Points de metier gagnes" };
   // Traduction des valeurs BRUTES stockees par Core.lua (source de l'or,
   // activite de temps joue) vers un libelle affiche.
@@ -1081,6 +1085,13 @@
   var EVENT_LOG_COLS = {
     quests: [
       { label: "Quete", get: function (e) { return e.quest; } },
+      { label: "Zone", get: function (e) { return e.zone; } },
+      { label: "XP", get: function (e) { return e.xp; }, num: true },
+    ],
+    // Memes entrees que quests : questLog filtre sur e.wq (cf. flattenEventLog
+    // et Stats/Core.lua OnQuestTurnedIn).
+    worldQuests: [
+      { label: "Expedition", get: function (e) { return e.quest; } },
       { label: "Zone", get: function (e) { return e.zone; } },
       { label: "XP", get: function (e) { return e.xp; }, num: true },
     ],
@@ -1174,6 +1185,8 @@
       var d = scoped[k] || {};
       if (metricKey === "quests") {
         (d.questLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "worldQuests") {
+        (d.questLog || []).forEach(function (e) { if (e.wq) rows.push(e); });
       } else if (metricKey === "dungeons") {
         (d.mplus || []).forEach(function (e) { rows.push(e); });
         (d.dungeonLog || []).forEach(function (e) { rows.push(e); });
