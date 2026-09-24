@@ -1199,10 +1199,10 @@
     var order = [], byKey = {};
     rows.forEach(function (row) {
       // exp dans la cle, comme GroupEventRows cote addon (Stats/UI.lua).
-      var gKey = eventDayKey(row.ts) + "" + row[dimKey] + "" + row.exp;
+      var gKey = eventDayKey(row.ts) + "" + row[dimKey] + "" + row.exp + "" + (row.expEst ? 1 : 0);
       var g = byKey[gKey];
       if (!g) {
-        g = {}; g[dimKey] = row[dimKey]; g.ts = row.ts; g.count = 0; g.amount = 0; g.time = 0; g.exp = row.exp;
+        g = {}; g[dimKey] = row[dimKey]; g.ts = row.ts; g.count = 0; g.amount = 0; g.time = 0; g.exp = row.exp; g.expEst = row.expEst;
         byKey[gKey] = g;
         order.push(g);
       }
@@ -1318,7 +1318,7 @@
     var body = rows.map(function (r) {
       var tds = cols.map(function (c) {
         var v = c.get(r);
-        var text = c.exp ? (v == null ? "-" : esc(expansionLabel(v)))
+        var text = c.exp ? (v == null ? "-" : (r.expEst ? '<span class="dash-exp-est" title="Extension estimee a partir de la zone (anciens evenements)">≈</span> ' : "") + esc(expansionLabel(v)))
           : c.won ? (v === 1 ? '<span style="color:#6ee7b7">Victoire</span>' : v === 0 ? '<span style="color:#ff6b6b">Defaite</span>' : "-")
           : c.duration ? fmtDuration(v)
           : c.gold ? fmtGold(v || 0)

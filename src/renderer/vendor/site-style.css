@@ -938,3 +938,6 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 }
 
 .visit-counter{color:var(--muted);font-size:.78rem}
+
+/* Extension estimee (rattrapage Stats 7.1.5.16, anciens evenements) */
+.dash-exp-est{opacity:.65;cursor:help}
