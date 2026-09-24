@@ -802,6 +802,9 @@
     lineParts.push("Arene (2c2+3c3+melee solo) : " + (arena ? (fmtNum(arena.played || 0) + " matchs - " + fmtNum(arena.won || 0) + " victoires (" + pctOf(arena.won || 0, arena.played || 0) + "%)") : "-"));
     lineParts.push("Champs de bataille : " + (pvp.bgParticipation ? (fmtNum(pvp.bgParticipation) + " participations - " + fmtNum(pvp.bgWinsTotal || 0) + " victoires (" + pctOf(pvp.bgWinsTotal || 0, pvp.bgParticipation) + "%)") : "-"));
     var summaryLine = '<p class="kpi-sub" style="margin:0 0 16px">' + lineParts.map(esc).join(" &middot; ") + "</p>";
+    // Journal des parties (d.pvpLog) : ouvre la meme liste d'evenements que
+    // les cartes KPI, affichee en haut du tableau de bord.
+    var matchesBtn = '<p style="margin:0 0 16px"><button type="button" class="btn ghost" style="padding:6px 14px;font-size:13px" data-action="toggle-event-detail" data-value="pvpMatches">Journal des parties</button></p>';
 
     var bracketRows = PVP_BRACKET_ORDER.map(function (key) {
       var b = pvp.brackets && pvp.brackets[key];
@@ -823,7 +826,7 @@
     }
     var bgTable = tableHtml("Champs de bataille - detail", [["Nom"], ["Victoires", "num"]], bgRows, "Aucun champ de bataille joue.");
 
-    return statsDetailWrap(SUMMARY_SECTION_COLORS.pvp, "PVP", summaryLine + bracketTable + bgTable);
+    return statsDetailWrap(SUMMARY_SECTION_COLORS.pvp, "PVP", summaryLine + matchesBtn + bracketTable + bgTable);
   }
 
   // Detail Gouffres : tableau par type (nom / nombre de fois / palier max).
@@ -1077,16 +1080,32 @@
   // le detail illisible sur les metriques a volume eleve (Temps joue, Or).
   var EVENT_LOG_MAX_ROWS = 10;
   var EVENT_METRIC_LABELS = { quests: "Quetes", worldQuests: "Expeditions", dungeons: "Donjons & M+", raids: "Raids", delves: "Gouffres",
-                               repGained: "Reputation gagnee", gold: "Or", played: "Temps joue", profGained: "Points de metier gagnes" };
+                               repGained: "Reputation gagnee", gold: "Or", played: "Temps joue", profGained: "Points de metier gagnes",
+                               pvpMatches: "Parties JcJ" };
   // Traduction des valeurs BRUTES stockees par Core.lua (source de l'or,
   // activite de temps joue) vers un libelle affiche.
   var GOLD_SOURCE_LABELS = { quest: "Quete", vendor: "Marchand", ah: "Hotel des ventes", other: "Autre" };
   var PLAYTIME_ACTIVITY_LABELS = { dungeon: "Donjon", raid: "Raid", delve: "Gouffre", world: "Monde" };
+  var PVP_KIND_LABELS = { bg: "Champ de bataille", rbg: "CdB cote", blitz: "Blitz", arena: "Arene cotee",
+                          skirmish: "Escarmouche", shuffle: "Melee solo", brawl: "Bagarre" };
+  // Champ "exp" des journaux (Stats/Core.lua, SX.ExpansionFor*) : numero
+  // d'extension Blizzard. Miroir de L["EXP_SHORT_n"] (Stats/Locales/enUS.lua).
+  var EXPANSION_SHORT = ["Classic", "Burning Crusade", "Lich King", "Cataclysm", "Pandaria", "Draenor",
+                         "Legion", "Battle for Azeroth", "Shadowlands", "Dragonflight", "The War Within", "Midnight"];
+  function expansionLabel(n) {
+    if (n == null) return null;
+    return EXPANSION_SHORT[n] || ("#" + n);
+  }
+  // Colonne Extension, toujours en dernier. num:true pour trier dans l'ordre
+  // chronologique des extensions ; fmt pour afficher le nom et non le numero.
+  // Absente (evenement anterieur a l'ajout) = -1 au tri, "-" a l'affichage.
+  var EXP_COL = { label: "Extension", get: function (e) { return e.exp; }, num: true, exp: true };
   var EVENT_LOG_COLS = {
     quests: [
       { label: "Quete", get: function (e) { return e.quest; } },
       { label: "Zone", get: function (e) { return e.zone; } },
       { label: "XP", get: function (e) { return e.xp; }, num: true },
+      EXP_COL,
     ],
     // Memes entrees que quests : questLog filtre sur e.wq (cf. flattenEventLog
     // et Stats/Core.lua OnQuestTurnedIn).
@@ -1094,6 +1113,16 @@
       { label: "Expedition", get: function (e) { return e.quest; } },
       { label: "Zone", get: function (e) { return e.zone; } },
       { label: "XP", get: function (e) { return e.xp; }, num: true },
+      EXP_COL,
+    ],
+    // Journal JcJ (d.pvpLog, une ligne par partie) - pas de carte KPI, ouvert
+    // depuis le detail PVP (bouton "Journal des parties").
+    pvpMatches: [
+      { label: "Carte", get: function (e) { return e.map; } },
+      { label: "Type", get: function (e) { return PVP_KIND_LABELS[e.kind] || e.kind; } },
+      { label: "Resultat", get: function (e) { return e.won === true ? 1 : e.won === false ? 0 : null; }, num: true, won: true },
+      { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
+      EXP_COL,
     ],
     dungeons: [
       // mplus utilise "map", dungeonLog (donjons normaux) utilise "name".
@@ -1103,21 +1132,25 @@
       // time est en secondes (M+ converti depuis les millisecondes Blizzard,
       // donjon normal = duree brute entree/sortie d'instance - cf. Core.lua).
       { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
+      EXP_COL,
     ],
     raids: [
       { label: "Nom", get: function (e) { return e.name; } },
       { label: "Spe", get: function (e) { return e.spec; } },
       { label: "Boss tues", get: function (e) { return e.bossKills; }, num: true },
       { label: "Temps", get: function (e) { return e.time; }, num: true, duration: true },
+      EXP_COL,
     ],
     delves: [
       { label: "Nom", get: function (e) { return e.name; } },
       { label: "Palier", get: function (e) { return e.tier; }, num: true },
+      EXP_COL,
     ],
     repGained: [
       { label: "Faction", get: function (e) { return e.faction; } },
       { label: "Nb", get: function (e) { return e.count; }, num: true },
       { label: "Gain", get: function (e) { return e.amount; }, num: true },
+      EXP_COL,
     ],
     gold: [
       { label: "Source", get: function (e) { return GOLD_SOURCE_LABELS[e.source] || e.source; } },
@@ -1133,8 +1166,13 @@
       { label: "Metier", get: function (e) { return e.profession; } },
       { label: "Nb", get: function (e) { return e.count; }, num: true },
       { label: "Gain", get: function (e) { return e.amount; }, num: true },
+      EXP_COL,
     ],
   };
+
+  function hasExpColumn(metricKey) {
+    return (EVENT_LOG_COLS[metricKey] || []).some(function (c) { return c.exp; });
+  }
 
   // Metriques regroupees par jour+dimension avant affichage (cf.
   // groupEventRows) - toutes celles dont chaque evenement se resume a
@@ -1160,10 +1198,11 @@
   function groupEventRows(rows, dimKey) {
     var order = [], byKey = {};
     rows.forEach(function (row) {
-      var gKey = eventDayKey(row.ts) + "" + row[dimKey];
+      // exp dans la cle, comme GroupEventRows cote addon (Stats/UI.lua).
+      var gKey = eventDayKey(row.ts) + "" + row[dimKey] + "" + row.exp;
       var g = byKey[gKey];
       if (!g) {
-        g = {}; g[dimKey] = row[dimKey]; g.ts = row.ts; g.count = 0; g.amount = 0; g.time = 0;
+        g = {}; g[dimKey] = row[dimKey]; g.ts = row.ts; g.count = 0; g.amount = 0; g.time = 0; g.exp = row.exp;
         byKey[gKey] = g;
         order.push(g);
       }
@@ -1202,6 +1241,8 @@
         (d.playtimeLog || []).forEach(function (e) { rows.push(e); });
       } else if (metricKey === "profGained") {
         (d.profLog || []).forEach(function (e) { rows.push(e); });
+      } else if (metricKey === "pvpMatches") {
+        (d.pvpLog || []).forEach(function (e) { rows.push(e); });
       }
     });
     if (GROUPED_METRICS[metricKey]) rows = groupEventRows(rows, GROUPED_METRICS[metricKey]);
@@ -1209,19 +1250,57 @@
     return rows;
   }
 
-  function renderEventLogTable(profile, metricKey, win, sort) {
+  // Filtre par extension de la liste d'evenements : "all", "none" (sans
+  // extension connue) ou le numero d'extension en texte (valeur du <select>).
+  // Choix = extensions presentes sur la periode, plus le filtre actif meme
+  // s'il ne matche plus rien (meme logique que BuildEventListDetail, addon).
+  function expFilterHtml(allRows, active) {
+    var seen = {}, nums = [], hasNone = false;
+    allRows.forEach(function (r) {
+      if (r.exp == null) hasNone = true;
+      else if (!seen[r.exp]) { seen[r.exp] = true; nums.push(r.exp); }
+    });
+    if (active !== "all" && active !== "none" && !seen[active]) { seen[active] = true; nums.push(Number(active)); }
+    nums.sort(function (a, b) { return a - b; });
+    var opts = [{ key: "all", label: "Toutes" }].concat(nums.map(function (n) { return { key: String(n), label: expansionLabel(n) }; }));
+    if (hasNone || active === "none") opts.push({ key: "none", label: "Non renseignee" });
+    return (
+      '<div class="bi-event-filter" style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 10px">' +
+      '<span class="kpi-sub" style="margin:0">Extension</span>' +
+      '<select class="compare-select" data-action="event-exp-filter" aria-label="Filtrer par extension">' +
+      opts.map(function (o) {
+        return '<option value="' + esc(o.key) + '"' + (String(active) === o.key ? " selected" : "") + ">" + esc(o.label) + "</option>";
+      }).join("") + "</select></div>"
+    );
+  }
+
+  function renderEventLogTable(profile, metricKey, win, sort, expFilter) {
     sort = sort || { key: "date", dir: "desc" };
+    expFilter = expFilter == null ? "all" : String(expFilter);
     var cols = EVENT_LOG_COLS[metricKey];
     if (!cols) return "";
     var allRows = flattenEventLog(profile.days, win, metricKey);
+    var filterHtml = "";
+    if (hasExpColumn(metricKey)) {
+      filterHtml = expFilterHtml(allRows, expFilter);
+      if (expFilter !== "all") {
+        allRows = allRows.filter(function (r) {
+          return expFilter === "none" ? r.exp == null : (r.exp != null && String(r.exp) === expFilter);
+        });
+      }
+    }
     if (allRows.length === 0) {
-      return '<p class="dash-empty">Aucun evenement enregistre sur cette periode.</p>';
+      return filterHtml + '<p class="dash-empty">Aucun evenement enregistre sur cette periode.</p>';
     }
     var rows = allRows.slice(0, EVENT_LOG_MAX_ROWS);
 
     var sorters = { date: function (r) { return r.ts || 0; } };
     cols.forEach(function (c, i) {
-      sorters["c" + i] = function (r) { var v = c.get(r); return c.num ? (v || 0) : String(v || ""); };
+      sorters["c" + i] = function (r) {
+        var v = c.get(r);
+        if (c.exp || c.won) return v == null ? -1 : v;
+        return c.num ? (v || 0) : String(v || "");
+      };
     });
     var sf = sorters[sort.key] || sorters.date;
     rows.sort(function (a, b) {
@@ -1239,14 +1318,18 @@
     var body = rows.map(function (r) {
       var tds = cols.map(function (c) {
         var v = c.get(r);
-        var text = c.duration ? fmtDuration(v)
+        var text = c.exp ? (v == null ? "-" : esc(expansionLabel(v)))
+          : c.won ? (v === 1 ? '<span style="color:#6ee7b7">Victoire</span>' : v === 0 ? '<span style="color:#ff6b6b">Defaite</span>' : "-")
+          : c.duration ? fmtDuration(v)
           : c.gold ? fmtGold(v || 0)
           : (v == null || v === "") ? "-" : (c.num ? fmtNum(Math.round(v)) : esc(String(v)));
-        return "<td" + (c.num ? ' class="num"' : "") + ">" + text + "</td>";
+        var alignRight = c.num && !c.exp && !c.won;
+        return "<td" + (alignRight ? ' class="num"' : "") + ">" + text + "</td>";
       }).join("");
       return "<tr><td>" + esc(fmtEventTime(r.ts)) + "</td>" + tds + "</tr>";
     }).join("");
     return (
+      filterHtml +
       '<div class="dash-table-wrap"><table class="dash-table"><thead><tr>' + head + "</tr></thead><tbody>" + body + "</tbody></table></div>" +
       '<p class="dash-note">' + allRows.length + " evenement" + (allRows.length > 1 ? "s" : "") + " sur la periode selectionnee" +
       (allRows.length > EVENT_LOG_MAX_ROWS ? " (affichage limite aux " + EVENT_LOG_MAX_ROWS + " plus recents)" : "") +
@@ -1599,6 +1682,9 @@
       // deux tris n'interferent pas l'un avec l'autre.
       eventMetric: null,
       eventSort: { key: "date", dir: "desc" },
+      // Filtre par extension de la liste d'evenements ("all"/"none"/numero),
+      // partage entre cartes comme eventSort (cf. expFilterHtml).
+      eventExpFilter: "all",
       // Sections repliables (PVP/Gouffres+Tourments/Reputations) - meme
       // principe que l'addon Stats (UI.lua, view.summaryExpanded) : repliees
       // par defaut, cliquer sur la tuile deplie son detail complet.
@@ -1700,9 +1786,9 @@
         // Meme couleur que la carte d'origine (OVERLAY_COLORS) au lieu du
         // gris/or generique - demande utilisateur du 2026-09-13, meme
         // principe que le fix cote addon (BuildDetail/BuildEventListDetail).
-        var evColor = OVERLAY_COLORS[state.eventMetric] || "#e4b64a";
-        html += '<div class="bi-chart-card" style="border-top-color:' + evColor + '"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + evColor + '">Detail : ' + esc(evLabel) + '</h3></div>' +
-          renderEventLogTable(active, state.eventMetric, win, state.eventSort) + "</div>";
+        var evColor = OVERLAY_COLORS[state.eventMetric] || (state.eventMetric === "pvpMatches" ? SUMMARY_SECTION_COLORS.pvp : "#e4b64a");
+        html += '<div class="bi-chart-card" data-event-detail style="border-top-color:' + evColor + '"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + evColor + '">Detail : ' + esc(evLabel) + '</h3></div>' +
+          renderEventLogTable(active, state.eventMetric, win, state.eventSort, state.eventExpFilter) + "</div>";
       }
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
@@ -1836,6 +1922,12 @@
         var evMetric = el.dataset.value;
         state.eventMetric = (state.eventMetric === evMetric) ? null : evMetric;
         render();
+        // Ouvert depuis le detail PVP (bas de page) : la liste s'affiche en
+        // haut, on l'amene a l'ecran.
+        if (state.eventMetric === "pvpMatches") {
+          var evCard = container.querySelector("[data-event-detail]");
+          if (evCard && evCard.scrollIntoView) evCard.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
       }
       else if (action === "toggle-summary") {
         var sKey = el.dataset.value;
@@ -1983,7 +2075,9 @@
         return;
       }
       var profFilter = e.target.closest('[data-action="prof-filter"]');
-      if (profFilter) { state.profFilter = profFilter.value; render(); }
+      if (profFilter) { state.profFilter = profFilter.value; render(); return; }
+      var expFilter = e.target.closest('[data-action="event-exp-filter"]');
+      if (expFilter) { state.eventExpFilter = expFilter.value; render(); }
     });
 
     return {
