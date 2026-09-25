@@ -1497,6 +1497,115 @@
   }
 
   // ==========================================================================
+  // CETTE SEMAINE (WeeklyCompass)
+  // ==========================================================================
+  // Miroir de WeeklyCompass : chaque personnage exporte `weekly` =
+  // { resetAt, lastSeen, entries: [{key,label,short,category,order,status,
+  // current,max,ilvl,detail}] } (Stats/Export.lua, collectWeekly). resetAt est
+  // l'horodatage serveur du PROCHAIN reset : une fois depasse, les compteurs
+  // appartiennent a une semaine terminee et sont affiches grises, jamais
+  // presentes comme actuels. Champ absent = WeeklyCompass pas installe.
+  var WEEKLY_CATEGORY_ORDER = { vault: 10, lairs: 20, delves: 30, hunt: 40, misc: 90 };
+  var WEEKLY_STATUS = {
+    done:        { label: "Fait",     color: "#6bba7a" },
+    in_progress: { label: "En cours", color: "#deb052" },
+    not_started: { label: "A faire",  color: "#d1706a" },
+    unknown:     { label: "Inconnu",  color: "#8c8c94" },
+  };
+  var WEEKLY_ACCENT = "#0affbe";  // turquoise de WeeklyCompass (UI/Dashboard.lua)
+
+  function weeklyIsStale(weekly) {
+    return !!(weekly && weekly.resetAt && Date.now() / 1000 >= weekly.resetAt);
+  }
+
+  function weeklyCellText(e) {
+    if (!e) return "-";
+    if (e.status === "unknown") return "?";
+    if (e.max != null) return fmtNum(e.current || 0) + "/" + fmtNum(e.max);
+    return e.detail != null ? String(e.detail) : (WEEKLY_STATUS[e.status] || WEEKLY_STATUS.unknown).label;
+  }
+
+  function weeklyCell(e, stale) {
+    var st = WEEKLY_STATUS[(e && e.status) || "unknown"] || WEEKLY_STATUS.unknown;
+    var color = (!e || stale) ? "var(--muted)" : st.color;
+    var title = e ? (e.label || "") + " : " + st.label + (e.ilvl ? " (ilvl " + e.ilvl + ")" : "") : "";
+    return '<td class="wk-cell" style="color:' + color + '" title="' + esc(title) + '">' + esc(weeklyCellText(e)) + "</td>";
+  }
+
+  // Colonnes = union ordonnee des entrees de tous les personnages, meme regle
+  // de tri que l'addon (categorie, puis ordre, puis cle).
+  function weeklyColumns(profiles) {
+    var cols = [], seen = {};
+    profiles.forEach(function (p) {
+      ((p.weekly && p.weekly.entries) || []).forEach(function (e) {
+        if (!seen[e.key]) {
+          seen[e.key] = 1;
+          cols.push({ key: e.key, header: e.short || e.label || e.key, category: e.category, order: e.order || 100 });
+        }
+      });
+    });
+    cols.sort(function (a, b) {
+      var ca = WEEKLY_CATEGORY_ORDER[a.category] || 100, cb = WEEKLY_CATEGORY_ORDER[b.category] || 100;
+      if (ca !== cb) return ca - cb;
+      if (a.order !== b.order) return a.order - b.order;
+      return a.key < b.key ? -1 : a.key > b.key ? 1 : 0;
+    });
+    return cols;
+  }
+
+  var WEEKLY_CTA = '<p class="dash-empty">Aucune donnee de semaine dans ce code. Installe <strong>WeeklyCompass</strong> ' +
+    '(avec Stats) pour voir ici ce qu\'il reste a faire cette semaine sur chacun de tes personnages.</p>';
+
+  function weeklyCard(body, note) {
+    return '<div class="bi-chart-card wk-card" style="border-top-color:' + WEEKLY_ACCENT + '">' +
+      '<div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + WEEKLY_ACCENT + '">Cette semaine</h3></div>' +
+      body + (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+
+  // Vue compte : la meme grille qu'en jeu, personnages x activites.
+  function renderWeeklyGrid(profiles) {
+    var withWeekly = (profiles || []).filter(function (p) { return p.weekly && p.weekly.entries && p.weekly.entries.length; });
+    if (withWeekly.length === 0) return weeklyCard(WEEKLY_CTA);
+    var cols = weeklyColumns(withWeekly);
+    var anyStale = false;
+    var head = "<tr><th>Personnage</th>" + cols.map(function (c) { return "<th>" + esc(c.header) + "</th>"; }).join("") + "</tr>";
+    var rows = withWeekly.map(function (p) {
+      var stale = weeklyIsStale(p.weekly);
+      if (stale) anyStale = true;
+      var byKey = {};
+      p.weekly.entries.forEach(function (e) { byKey[e.key] = e; });
+      return '<tr class="' + (stale ? "wk-stale" : "") + '"><td><i class="bi-chip-dot" style="background:' + classColor(p.char.class) + '"></i> ' +
+        esc(p.char.name) + (stale ? ' <span class="wk-stale-tag">a rafraichir</span>' : "") + "</td>" +
+        cols.map(function (c) { return weeklyCell(byKey[c.key], stale); }).join("") + "</tr>";
+    }).join("");
+    var note = "? = activite pas encore suivie par l'addon. " +
+      (anyStale ? "Les lignes grisees datent d'une semaine terminee : reconnecte ces personnages pour les mettre a jour." : "");
+    return weeklyCard('<div class="dash-table-wrap"><table class="dash-table wk-table"><thead>' + head + "</thead><tbody>" + rows + "</tbody></table></div>", note);
+  }
+
+  // Vue personnage : la liste detaillee, avec l'ilvl deja obtenu en Chambre forte.
+  function renderWeeklyDetail(profile) {
+    var weekly = profile && profile.weekly;
+    if (!weekly || !weekly.entries || !weekly.entries.length) return weeklyCard(WEEKLY_CTA);
+    var stale = weeklyIsStale(weekly);
+    var entries = weekly.entries.slice().sort(function (a, b) {
+      var ca = WEEKLY_CATEGORY_ORDER[a.category] || 100, cb = WEEKLY_CATEGORY_ORDER[b.category] || 100;
+      if (ca !== cb) return ca - cb;
+      return (a.order || 100) - (b.order || 100);
+    });
+    var rows = entries.map(function (e) {
+      var st = WEEKLY_STATUS[e.status] || WEEKLY_STATUS.unknown;
+      return '<tr class="' + (stale ? "wk-stale" : "") + '"><td>' + esc(e.label || e.key) + "</td>" + weeklyCell(e, stale) +
+        '<td style="color:' + (stale ? "var(--muted)" : st.color) + '">' + esc(st.label) + "</td>" +
+        "<td>" + (e.ilvl ? "ilvl " + esc(e.ilvl) : "") + "</td></tr>";
+    }).join("");
+    var note = (weekly.lastSeen ? "Releve le " + esc(fmtGeneratedAt(weekly.lastSeen)) + ". " : "") +
+      (stale ? "Cette semaine est terminee depuis : reconnecte ce personnage pour la mettre a jour." : "");
+    return weeklyCard('<div class="dash-table-wrap"><table class="dash-table wk-table"><thead><tr><th>Activite</th><th>Progression</th><th>Statut</th><th>Recompense</th></tr></thead><tbody>' +
+      rows + "</tbody></table></div>", note);
+  }
+
+  // ==========================================================================
   // COMPARAISON (2 profils)
   // ==========================================================================
   function renderComparison(profiles, ids, range, metricKey, uid) {
@@ -1790,6 +1899,7 @@
         html += '<div class="bi-chart-card" data-event-detail style="border-top-color:' + evColor + '"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + evColor + '">Detail : ' + esc(evLabel) + '</h3></div>' +
           renderEventLogTable(active, state.eventMetric, win, state.eventSort, state.eventExpFilter) + "</div>";
       }
+      html += active.id === ALL_PROFILES_ID ? renderWeeklyGrid(state.profiles) : renderWeeklyDetail(active);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -2234,6 +2344,7 @@
         return {
           id: (char.name || "?") + "-" + (char.realm || "?"), code: code, char: char,
           days: entry.days || {}, professions: entry.professions || {},
+          weekly: entry.weekly || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -2382,6 +2493,8 @@
         // on retombe sur le `days` (vide) de l'API sans casser le rendu.
         days: (a.days && Object.keys(a.days).length) ? a.days : (b.days || {}),
         professions: mergeProfessions(a.professions, b.professions),
+        // Seul l'addon connait la semaine WeeklyCompass (l'API n'en a pas).
+        weekly: a.weekly || b.weekly || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };

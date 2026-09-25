@@ -758,6 +758,14 @@ a{color:inherit}
 .dash-note{color:var(--muted);font-size:.8rem;margin-top:10px}
 .dash-table-wrap{overflow-x:auto;overflow-y:auto}
 .dash-table-wrap thead th{position:sticky;top:0;background:var(--graphite);z-index:1}
+/* Carte "Cette semaine" (WeeklyCompass) : couleurs de statut posees en ligne
+   par dashboard-shared.js, ici seulement la mise en forme. */
+.wk-card{margin-bottom:18px}
+.wk-table th,.wk-table td{white-space:nowrap}
+.wk-table td.wk-cell{font-variant-numeric:tabular-nums;font-weight:700}
+.wk-table tr.wk-stale td{opacity:.55}
+.wk-stale-tag{font-size:.72rem;font-weight:700;color:var(--muted);border:1px solid var(--line-strong);
+  border-radius:999px;padding:1px 7px;margin-left:6px}
 .dash-sort-btn{all:unset;cursor:pointer;color:inherit;font:inherit;font-weight:700;white-space:nowrap}
 .dash-sort-btn:hover{color:var(--gold-soft)}
 .dash-sort-btn:focus-visible{outline:2px solid var(--gold-glow);outline-offset:2px;border-radius:4px}
