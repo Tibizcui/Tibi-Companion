@@ -1613,6 +1613,285 @@
   }
 
   // ==========================================================================
+  // PERSONNAGES ET FICHE (WeeklyCompass, phase 4)
+  // ==========================================================================
+  // Miroir de l'onglet Personnages et de la fiche detaillee de WeeklyCompass.
+  // Chaque profil porte `compass` = { lastSeen, hidden, profile:{level, spec,
+  // ilvl, gold (cuivre), rest}, keystone:{text, level, expiresAt},
+  // score:{value, color}, lockouts:[{name, diff, diffID, killed, total,
+  // expiresAt}], sheet:{updatedAt, race, className, slots, set, stats,
+  // currencies, talents} } et `warband` = { money, at } (Stats/Export.lua,
+  // collectCompass). Section publique (fixed) : l'or n'est jamais affiche.
+  var COMPASS_ACCENT = "#0affbe";
+  var TRACK_COLORS = { explorer: "#9e9e9e", adventurer: "#ffffff", veteran: "#1eff00",
+    champion: "#0070dd", hero: "#a335ee", myth: "#ff8000" };
+  var QUALITY_COLORS = { 0: "#9d9d9d", 1: "#ffffff", 2: "#1eff00", 3: "#0070dd", 4: "#a335ee", 5: "#ff8000", 6: "#e6cc80", 7: "#00ccff" };
+  var DIFF_COLORS = {};
+  [8, 16, 23].forEach(function (id) { DIFF_COLORS[id] = "#ff8000"; });
+  [2, 5, 6, 15].forEach(function (id) { DIFF_COLORS[id] = "#b366ff"; });
+  [1, 3, 4, 9, 14, 33].forEach(function (id) { DIFF_COLORS[id] = "#59a6ff"; });
+  [7, 17].forEach(function (id) { DIFF_COLORS[id] = "#4de64d"; });
+  var SLOT_LABELS = { 1: "Tete", 2: "Cou", 3: "Epaules", 15: "Dos", 5: "Torse", 9: "Poignets", 16: "Main droite",
+    17: "Main gauche", 10: "Mains", 6: "Taille", 7: "Jambes", 8: "Pieds", 11: "Anneau 1", 12: "Anneau 2",
+    13: "Bijou 1", 14: "Bijou 2" };
+  var SLOT_ORDER = [1, 2, 3, 15, 5, 9, 16, 17, 10, 6, 7, 8, 11, 12, 13, 14];
+  var WOWHEAD_BASE = "https://www.wowhead.com/fr/";
+  var COMPASS_CTA = '<p class="dash-empty">Aucune fiche WeeklyCompass dans ce code. Installe <strong>WeeklyCompass</strong> ' +
+    "(avec Stats) pour voir ici le niveau d'objet, l'equipement, l'ensemble de raid et les talents de chacun de tes personnages.</p>";
+
+  function nowSec() { return Date.now() / 1000; }
+  function fmtGold(copper) { return fmtNum(Math.floor((copper || 0) / 10000)) + " po"; }
+  function fmtDec(x) { return (Math.round((x || 0) * 10) / 10).toFixed(1).replace(".", ","); }
+  function fmtDelay(sec) {
+    sec = Math.max(0, sec || 0);
+    var d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600);
+    return d > 0 ? d + " j " + h + " h" : Math.max(1, h) + " h";
+  }
+  function liveLockouts(c) {
+    var t = nowSec();
+    return ((c && c.lockouts) || []).filter(function (it) { return (it.expiresAt || 0) > t; });
+  }
+  function liveKeystone(c) {
+    return (c && c.keystone && (!c.keystone.expiresAt || c.keystone.expiresAt > nowSec())) ? c.keystone : null;
+  }
+  function compassCard(title, body, note, extraClass) {
+    return '<div class="bi-chart-card cp-card' + (extraClass ? " " + extraClass : "") + '" style="border-top-color:' + COMPASS_ACCENT + '">' +
+      '<div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + COMPASS_ACCENT + '">' + title + "</h3></div>" +
+      body + (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+  // Banque de Bataillon : le releve le plus recent parmi les profils du code.
+  function latestWarband(profiles) {
+    var best = null;
+    (profiles || []).forEach(function (p) {
+      if (p.warband && typeof p.warband.money === "number" && (!best || (p.warband.at || 0) > (best.at || 0))) best = p.warband;
+    });
+    return best;
+  }
+
+  // Colonnes de la vue compte. value = valeur de tri, cell = contenu HTML.
+  function compassColumns(fixed) {
+    var cols = [
+      { key: "level", label: "Niv.", value: function (c) { return c.profile && c.profile.level; },
+        cell: function (c) { return c.profile && c.profile.level != null ? esc(c.profile.level) : "-"; } },
+      { key: "spec", label: "Spe", value: null,
+        cell: function (c) { return c.profile && c.profile.spec ? esc(c.profile.spec) : "-"; } },
+      { key: "ilvl", label: "iLvl", value: function (c) { return c.profile && c.profile.ilvl; },
+        cell: function (c) { return c.profile && c.profile.ilvl ? fmtDec(c.profile.ilvl) : "-"; } },
+    ];
+    if (!fixed) {
+      cols.push({ key: "gold", label: "Or", value: function (c) { return c.profile && c.profile.gold; },
+        cell: function (c) { return c.profile && c.profile.gold != null ? fmtGold(c.profile.gold) : "-"; } });
+    }
+    cols.push(
+      { key: "key", label: "Cle", value: function (c) { var k = liveKeystone(c); return k && k.level; },
+        cell: function (c) { var k = liveKeystone(c); return k ? esc(k.text) : "-"; } },
+      { key: "score", label: "Score M+", value: function (c) { return c.score && c.score.value; },
+        cell: function (c) {
+          if (!c.score || !c.score.value) return "-";
+          var col = c.score.color ? "rgb(" + c.score.color.map(function (v) { return Math.round(v * 255); }).join(",") + ")" : "inherit";
+          return '<span style="color:' + col + '">' + esc(Math.floor(c.score.value)) + "</span>";
+        } },
+      { key: "raids", label: "Raids", value: function (c) { return liveLockouts(c).length || null; },
+        cell: function (c) {
+          var live = liveLockouts(c);
+          if (!live.length) return "-";
+          var title = live.map(function (it) { return it.name + " (" + it.diff + ") " + it.killed + "/" + it.total; }).join("\n");
+          return '<span title="' + esc(title) + '">' + live.length + " raid" + (live.length > 1 ? "s" : "") + "</span>";
+        } },
+      { key: "rest", label: "Repos", value: function (c) { return c.profile && c.profile.rest; },
+        cell: function (c) { return c.profile && c.profile.rest ? esc(c.profile.rest) + " %" : "-"; } }
+    );
+    return cols;
+  }
+
+  // Vue compte : l'onglet Personnages du jeu, triable, avec une ligne de total.
+  function renderCompassGrid(profiles, fixed, sort) {
+    var rows = (profiles || []).filter(function (p) { return p.compass && !p.compass.hidden; });
+    if (rows.length === 0) return compassCard("Personnages", COMPASS_CTA);
+    // Comme en jeu : une colonne chiffree sans aucune valeur (ex. Cle quand
+    // personne n'en a) n'est pas affichee. Niveau et iLvl restent toujours.
+    var cols = compassColumns(fixed).filter(function (c) {
+      if (!c.value || c.key === "level" || c.key === "ilvl") return true;
+      return rows.some(function (p) { var v = c.value(p.compass); return v != null && v !== 0; });
+    });
+    sort = sort || { key: "name", dir: "asc" };
+    var sortCol = null;
+    cols.forEach(function (c) { if (c.key === sort.key) sortCol = c; });
+    rows = rows.slice().sort(function (a, b) {
+      if (sortCol && sortCol.value) {
+        var va = sortCol.value(a.compass), vb = sortCol.value(b.compass);
+        if (va !== vb) {
+          if (va == null) return 1;
+          if (vb == null) return -1;
+          return sort.dir === "asc" ? va - vb : vb - va;
+        }
+      }
+      var na = a.char.name || "", nb = b.char.name || "";
+      if (sort.key === "name" && sort.dir === "desc") return nb.localeCompare(na);
+      return na.localeCompare(nb);
+    });
+    function th(key, label, sortable) {
+      if (!sortable) return "<th>" + esc(label) + "</th>";
+      var active = sort.key === key;
+      var arrow = active ? (sort.dir === "asc" ? " &#9650;" : " &#9660;") : "";
+      return '<th><button type="button" class="dash-sort-btn" data-action="compass-sort" data-key="' + key + '" aria-sort="' +
+        (active ? (sort.dir === "asc" ? "ascending" : "descending") : "none") + '">' + esc(label) + arrow + "</button></th>";
+    }
+    var head = "<tr>" + th("name", "Personnage", true) + cols.map(function (c) { return th(c.key, c.label, !!c.value); }).join("") + "</tr>";
+    // Homonymes (meme nom sur deux royaumes) : le royaume s'affiche en gris,
+    // comme dans le tableau du jeu.
+    var nameCount = {};
+    rows.forEach(function (p) { nameCount[p.char.name] = (nameCount[p.char.name] || 0) + 1; });
+    var body = rows.map(function (p) {
+      var realm = nameCount[p.char.name] > 1 && p.char.realm ? ' <span class="cp-sub">- ' + esc(p.char.realm) + "</span>" : "";
+      return '<tr><td><i class="bi-chip-dot" style="background:' + classColor(p.char.class) + '"></i> ' + esc(p.char.name) + realm + "</td>" +
+        cols.map(function (c) { return '<td class="cp-cell">' + c.cell(p.compass) + "</td>"; }).join("") + "</tr>";
+    }).join("");
+    // Total : or (+ banque de Bataillon, hors section publique), cles, raids.
+    var totals = {}, goldSum = 0, keys = 0, raids = 0;
+    rows.forEach(function (p) {
+      var c = p.compass;
+      if (c.profile && c.profile.gold) goldSum += c.profile.gold;
+      if (liveKeystone(c)) keys++;
+      raids += liveLockouts(c).length;
+    });
+    var wb = fixed ? null : latestWarband(profiles);
+    if (!fixed) {
+      var goldTitle = "Personnages : " + fmtGold(goldSum) + (wb ? "\nBanque de Bataillon : " + fmtGold(wb.money) + " (releve le " + fmtGeneratedAt(wb.at) + ")" : "\nBanque de Bataillon : pas encore relevee");
+      totals.gold = '<span title="' + esc(goldTitle) + '">' + fmtGold(goldSum + (wb ? wb.money : 0)) + "</span>";
+    }
+    totals.key = keys ? String(keys) : "";
+    totals.raids = raids ? String(raids) : "";
+    // Ligne de total seulement si au moins une colonne affichee a un total
+    // (section publique sans or, sans cle ni raid : rien a additionner).
+    var hasTotal = cols.some(function (c) { return totals[c.key]; });
+    var totalRow = hasTotal ? '<tr class="cp-total"><td>Total</td>' + cols.map(function (c) { return '<td class="cp-cell">' + (totals[c.key] || "") + "</td>"; }).join("") + "</tr>" : "";
+    var note = "Clique sur un personnage (puces ci-dessus) pour ouvrir sa fiche detaillee." +
+      (wb ? " L'or total inclut la banque de Bataillon." : "");
+    return compassCard("Personnages", '<div class="dash-table-wrap"><table class="dash-table cp-table"><thead>' + head + "</thead><tbody>" + body + totalRow + "</tbody></table></div>", note);
+  }
+
+  function statBars(stats) {
+    var defs = [["crit", "Coup critique"], ["haste", "Hate"], ["mastery", "Maitrise"], ["versa", "Polyvalence"]];
+    var scale = 40;
+    defs.forEach(function (d) { if ((stats[d[0]] || 0) > scale) scale = stats[d[0]]; });
+    return defs.map(function (d) {
+      var v = stats[d[0]];
+      var pct = v ? Math.min(100, (v / scale) * 100) : 0;
+      return '<div class="cp-stat"><span>' + d[1] + '</span><b>' + (v != null ? fmtDec(v) + " %" : "-") + '</b><i><em style="width:' + pct.toFixed(1) + '%"></em></i></div>';
+    }).join("");
+  }
+
+  function vaultGrid(weekly) {
+    var byKey = {};
+    ((weekly && weekly.entries) || []).forEach(function (e) { byKey[e.key] = e; });
+    var rowsDef = [["greatVault:3", "Raid"], ["greatVault:1", "Donjons"], ["greatVault:6", "Monde"]];
+    var stale = weeklyIsStale(weekly);
+    return '<div class="cp-vault' + (stale ? " cp-stale" : "") + '">' + rowsDef.map(function (r) {
+      var e = byKey[r[0]];
+      var slots = (e && e.slots) || [];
+      var boxes = [0, 1, 2].map(function (i) {
+        var s = slots[i];
+        if (!s) return '<span class="cp-box">-</span>';
+        var done = s.threshold > 0 && s.progress >= s.threshold;
+        if (done) {
+          var col = s.color ? "rgb(" + s.color.map(function (v) { return Math.round(v * 255); }).join(",") + ")" : "#6bba7a";
+          return '<span class="cp-box done" style="color:' + col + '">' + (s.ilvl ? esc(s.ilvl) : "&#10003;") + "</span>";
+        }
+        return '<span class="cp-box">' + Math.min(s.progress || 0, s.threshold || 0) + "/" + (s.threshold || 0) + "</span>";
+      }).join("");
+      return '<div class="cp-vault-row"><span>' + r[1] + "</span>" + boxes + "</div>";
+    }).join("") + "</div>" + (stale ? '<p class="dash-note">Semaine terminee depuis : reconnecte ce personnage.</p>' : "");
+  }
+
+  // Vue personnage : la fiche detaillee du jeu.
+  function renderSheet(profile, fixed) {
+    var c = profile && profile.compass;
+    if (!c) return compassCard("Fiche", COMPASS_CTA);
+    var sh = c.sheet;
+    if (!sh) {
+      return compassCard("Fiche", '<p class="dash-empty">Pas encore de fiche detaillee pour ce personnage : connecte-toi une fois dessus avec WeeklyCompass pour la remplir (equipement, ensemble, talents).</p>');
+    }
+    var color = classColor(profile.char && profile.char.class);
+    var p = c.profile || {};
+    var headParts = [];
+    if (p.level) headParts.push("Niveau " + esc(p.level));
+    if (p.spec) headParts.push(esc(p.spec));
+    if (sh.className) headParts.push(esc(sh.className));
+    if (sh.race) headParts.push(esc(sh.race));
+    var header = '<div class="cp-head"><div><div class="cp-name" style="color:' + color + '">' + esc(profile.char.name) + "</div>" +
+      '<div class="cp-sub">' + headParts.join(" &middot; ") + "</div></div>" +
+      '<div class="cp-ilvl"><b>' + (p.ilvl ? fmtDec(p.ilvl) : "-") + "</b><span>Niveau d'objet equipe</span></div></div>";
+
+    // Talents : heroique, build, (modifie), copier, Wowhead.
+    var t = sh.talents;
+    var talents = "";
+    if (t && (t.hero || t.build || t.code)) {
+      var tp = [];
+      if (t.hero) tp.push('<b style="color:' + COMPASS_ACCENT + '">' + esc(t.hero) + "</b>");
+      if (t.starter) tp.push("Build de depart");
+      else if (t.build) tp.push("Build &laquo; " + esc(t.build) + " &raquo;" + (t.modified ? ' <span class="cp-modified" title="Les talents actifs ne correspondent plus au build enregistre.">(modifie)</span>' : ""));
+      var heroList = (t.heroTalents || []).map(function (h) {
+        return esc(h.name || "?") + ((h.max || 1) > 1 ? " " + (h.rank || 0) + "/" + h.max : "");
+      }).join(", ");
+      talents = '<div class="cp-talents"><div title="' + esc(heroList) + '">' + tp.join(" &middot; ") + "</div>" +
+        (t.code ? '<div class="cp-talent-btns"><button type="button" class="btn ghost small" data-action="copy-build" data-code="' + esc(t.code) + '">Copier le build</button>' +
+          '<a class="btn ghost small" href="' + WOWHEAD_BASE + "talent-calc/blizzard/" + encodeURIComponent(t.code) + '" target="_blank" rel="noopener noreferrer">Voir l\'arbre sur Wowhead</a></div>' : "") +
+        (heroList ? '<p class="dash-note" style="margin-top:6px">Talents heroiques : ' + heroList + (t.otherCount ? " (+ " + t.otherCount + " talents de classe et de specialisation)" : "") + "</p>" : "") +
+        "</div>";
+    }
+
+    // Equipement.
+    var bySlot = {};
+    (sh.slots || []).forEach(function (s) { bySlot[s.slot] = s; });
+    var gear = SLOT_ORDER.map(function (id) {
+      var s = bySlot[id];
+      if (!s) return '<div class="cp-item empty"><span class="cp-slot">' + SLOT_LABELS[id] + "</span><span>-</span></div>";
+      var warns = [];
+      if (s.missingEnchant) warns.push("Sans enchant.");
+      if (s.emptySockets) warns.push(s.emptySockets > 1 ? s.emptySockets + " chasses vides" : "Chasse vide");
+      var name = esc(s.name || "?");
+      if (s.id) name = '<a href="' + WOWHEAD_BASE + "item=" + encodeURIComponent(s.id) + '" target="_blank" rel="noopener noreferrer" style="color:' + (QUALITY_COLORS[s.quality] || "#fff") + '">' + name + "</a>";
+      return '<div class="cp-item"><span class="cp-slot">' + SLOT_LABELS[id] + '</span><b style="color:' + (TRACK_COLORS[s.track] || "#fff") + '">' + (s.ilvl || "") + "</b>" +
+        '<span class="cp-item-name">' + name + "</span>" + (warns.length ? '<span class="cp-warn">' + warns.join(" &middot; ") + "</span>" : "") + "</div>";
+    }).join("");
+
+    // Ensemble de raid.
+    var set = sh.set;
+    var setHtml = set
+      ? '<div class="cp-set"><div><b>' + esc(set.name) + '</b><span class="' + (set.count >= 4 ? "cp-ok" : "cp-mid") + '">' + esc(set.count) + "/" + esc(set.total || 5) + "</span></div>" +
+        '<div class="cp-sub">' + [set.raid, set.expansion].filter(Boolean).map(esc).join(" &middot; ") + "</div>" +
+        '<div class="cp-sub">' + (set.count >= 2 ? "&#10003;" : "&#10007;") + " 2 pieces &nbsp; " + (set.count >= 4 ? "&#10003;" : "&#10007;") + " 4 pieces" +
+        (set.current === true ? ' <span class="cp-badge now">Saison en cours</span>' : set.current === false ? ' <span class="cp-badge old">Saison precedente (' + esc(set.patch || "?") + ")</span>" : "") + "</div></div>"
+      : '<p class="dash-empty">Aucun ensemble de raid porte.</p>';
+
+    // Raids.
+    var live = liveLockouts(c);
+    var raidsHtml = live.length
+      ? live.map(function (it) {
+        var full = it.total > 0 && it.killed >= it.total;
+        return '<div class="cp-raid"><span>' + esc(it.name) + ' <em style="color:' + (DIFF_COLORS[it.diffID] || "var(--muted)") + '">' + esc(it.diff) + "</em></span><b class=\"" + (full ? "cp-ok" : "cp-mid") + '">' + it.killed + "/" + it.total + "</b></div>";
+      }).join("") + '<p class="dash-note">Reset dans ' + fmtDelay(live[0].expiresAt - nowSec()) + "</p>"
+      : '<p class="dash-empty">Aucun raid verrouille.</p>';
+
+    // Monnaies (et or, hors section publique).
+    var cur = (sh.currencies || []).map(function (m) {
+      return '<div class="cp-raid"><span>' + esc(m.name) + "</span><b>" + fmtNum(m.quantity || 0) +
+        (m.max ? ' <em class="cp-sub">(' + fmtNum(m.useEarned ? m.earned || 0 : m.quantity || 0) + "/" + fmtNum(m.max) + ")</em>" : "") + "</b></div>";
+    }).join("");
+    if (!fixed && p.gold != null) cur = '<div class="cp-raid"><span>Or</span><b>' + fmtGold(p.gold) + "</b></div>" + cur;
+
+    var right =
+      '<h4 class="cp-h">Ensemble de raid</h4>' + setHtml +
+      '<h4 class="cp-h">Statistiques secondaires</h4>' + statBars(sh.stats || {}) +
+      '<h4 class="cp-h">Grand Coffre</h4>' + vaultGrid(profile.weekly) +
+      '<h4 class="cp-h">Verrouillages de raid</h4>' + raidsHtml +
+      (cur ? '<h4 class="cp-h">Monnaies</h4>' + cur : "");
+    var note = "Fiche du " + esc(fmtGeneratedAt(sh.updatedAt || c.lastSeen)) + ". Objets et arbre de talents : liens vers Wowhead.";
+    return compassCard("Fiche", header + talents + '<div class="cp-cols"><div><h4 class="cp-h">Equipement</h4>' + gear + "</div><div>" + right + "</div></div>", note, "cp-sheet");
+  }
+
+  // ==========================================================================
   // COMPARAISON (2 profils)
   // ==========================================================================
   function renderComparison(profiles, ids, range, metricKey, uid) {
@@ -1791,6 +2070,8 @@
       overlayEnabledMetrics: {},
       pvpEnabledMetrics: {},
       sort: { key: "date", dir: "desc" },
+      // Tri de la carte Personnages (WeeklyCompass).
+      compassSort: { key: "name", dir: "asc" },
       profFilter: "overall",
       // Detail par evenement (clic sur une carte KPI) : eventMetric = cle de
       // la carte ouverte (null = aucune). eventSort separe de `sort`
@@ -1907,6 +2188,8 @@
           renderEventLogTable(active, state.eventMetric, win, state.eventSort, state.eventExpFilter) + "</div>";
       }
       html += active.id === ALL_PROFILES_ID ? renderWeeklyGrid(state.profiles) : renderWeeklyDetail(active);
+      // Section publique (fixed) : l'or n'y est jamais affiche.
+      html += active.id === ALL_PROFILES_ID ? renderCompassGrid(state.profiles, fixed, state.compassSort) : renderSheet(active, fixed);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -2029,6 +2312,42 @@
         render();
       }
       else if (action === "toggle-compare") { state.compareMode = !state.compareMode; render(); }
+      else if (action === "compass-sort") {
+        var ck = el.dataset.key;
+        if (state.compassSort.key === ck) state.compassSort.dir = state.compassSort.dir === "asc" ? "desc" : "asc";
+        // Colonne chiffree : le plus grand en haut ; noms : ordre alphabetique.
+        else state.compassSort = { key: ck, dir: ck === "name" ? "asc" : "desc" };
+        render();
+      }
+      else if (action === "copy-build") {
+        var code = el.dataset.code || "";
+        var done = function (ok) {
+          var prev = el.textContent;
+          el.textContent = ok ? "Copie !" : "Copie impossible";
+          setTimeout(function () { el.textContent = prev; }, 1600);
+        };
+        // Repli si le presse-papiers moderne est refuse (navigateur ancien,
+        // page non securisee) : ancienne methode, puis fenetre avec le code
+        // pre-selectionne pour une copie manuelle. Jamais d'echec silencieux.
+        var fallback = function () {
+          var ta = document.createElement("textarea");
+          ta.value = code;
+          ta.setAttribute("readonly", "");
+          ta.style.position = "fixed"; ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          var ok = false;
+          try { ok = document.execCommand("copy"); } catch (err) { ok = false; }
+          document.body.removeChild(ta);
+          if (ok) done(true);
+          else window.prompt("Copie ce code (Ctrl+C) :", code);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(code).then(function () { done(true); }, fallback);
+        } else {
+          fallback();
+        }
+      }
       else if (action === "sort-table") {
         var key = el.dataset.key;
         if (state.sort.key === key) state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
@@ -2352,6 +2671,11 @@
           id: (char.name || "?") + "-" + (char.realm || "?"), code: code, char: char,
           days: entry.days || {}, professions: entry.professions || {},
           weekly: entry.weekly || null,
+          // WeeklyCompass phase 4 : onglet Personnages + fiche detaillee du
+          // perso, et banque de Bataillon (commune au compte, meme valeur
+          // recopiee sur chaque profil du code). Absents = addon ancien.
+          compass: entry.compass || null,
+          warband: data.warband || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -2502,6 +2826,8 @@
         professions: mergeProfessions(a.professions, b.professions),
         // Seul l'addon connait la semaine WeeklyCompass (l'API n'en a pas).
         weekly: a.weekly || b.weekly || null,
+        compass: a.compass || b.compass || null,
+        warband: a.warband || b.warband || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };

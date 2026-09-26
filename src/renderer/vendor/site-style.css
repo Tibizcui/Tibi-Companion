@@ -766,6 +766,50 @@ a{color:inherit}
 .wk-table tr.wk-stale td{opacity:.55}
 .wk-stale-tag{font-size:.72rem;font-weight:700;color:var(--muted);border:1px solid var(--line-strong);
   border-radius:999px;padding:1px 7px;margin-left:6px}
+/* Cartes "Personnages" et "Fiche" (WeeklyCompass, phase 4) : couleurs de
+   piste, de qualite et de difficulte posees en ligne par dashboard-shared.js. */
+.cp-card{margin-bottom:18px}
+.cp-table th,.cp-table td{white-space:nowrap}
+.cp-table td.cp-cell{font-variant-numeric:tabular-nums;font-weight:700}
+.cp-table tr.cp-total td{border-top:1px solid rgba(10,255,190,.45);background:rgba(10,255,190,.06);color:var(--gold);font-weight:800}
+.cp-table tr.cp-total td:first-child{color:#0affbe}
+.cp-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin:4px 0 12px}
+.cp-name{font-size:1.5rem;font-weight:800;line-height:1.1}
+.cp-sub{color:var(--muted);font-size:.85rem;margin-top:3px}
+.cp-ilvl{text-align:right}
+.cp-ilvl b{display:block;font-size:1.6rem;color:var(--gold);line-height:1}
+.cp-ilvl span{color:var(--muted);font-size:.75rem}
+.cp-talents{border:1px solid var(--line-strong);border-radius:10px;padding:10px 12px;margin-bottom:14px}
+.cp-talent-btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.cp-modified{color:#ffb34d;font-weight:700}
+.cp-cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+@media (max-width:860px){.cp-cols{grid-template-columns:1fr}}
+.cp-h{color:#0affbe;font-size:.95rem;margin:14px 0 8px;padding-bottom:4px;border-bottom:1px solid rgba(255,255,255,.1)}
+.cp-cols > div > .cp-h:first-child{margin-top:0}
+.cp-item{display:grid;grid-template-columns:78px 36px 1fr auto;gap:8px;align-items:center;padding:3px 0;font-size:.88rem}
+.cp-item.empty{color:var(--muted)}
+.cp-slot{color:var(--muted);font-size:.75rem}
+.cp-item b{font-variant-numeric:tabular-nums;text-align:right}
+.cp-item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-item-name a{text-decoration:none}
+.cp-item-name a:hover{text-decoration:underline}
+.cp-warn{color:#ff5959;font-size:.75rem;font-weight:700;white-space:nowrap}
+.cp-set > div:first-child{display:flex;justify-content:space-between;gap:10px}
+.cp-ok{color:#6bd97a;font-weight:800}
+.cp-mid{color:#ffb34d;font-weight:800}
+.cp-badge{display:inline-block;font-size:.72rem;font-weight:700;border-radius:999px;padding:1px 8px;margin-left:6px;border:1px solid}
+.cp-badge.now{color:#0affbe;border-color:rgba(10,255,190,.5)}
+.cp-badge.old{color:#ffb34d;border-color:rgba(255,179,77,.5)}
+.cp-stat{display:grid;grid-template-columns:110px 60px 1fr;gap:8px;align-items:center;font-size:.85rem;padding:2px 0}
+.cp-stat b{text-align:right;font-variant-numeric:tabular-nums}
+.cp-stat i{display:block;height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden}
+.cp-stat em{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-2))}
+.cp-vault-row{display:grid;grid-template-columns:78px repeat(3,1fr);gap:6px;align-items:center;margin-bottom:6px;font-size:.85rem}
+.cp-box{text-align:center;border:1px solid rgba(255,255,255,.15);border-radius:6px;padding:3px 0;color:var(--muted);font-variant-numeric:tabular-nums}
+.cp-box.done{border-color:rgba(107,217,122,.7);background:rgba(107,217,122,.1);font-weight:800}
+.cp-vault.cp-stale{opacity:.55}
+.cp-raid{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;padding:2px 0}
+.cp-raid em{font-style:normal;font-size:.75rem;margin-left:4px}
 .dash-sort-btn{all:unset;cursor:pointer;color:inherit;font:inherit;font-weight:700;white-space:nowrap}
 .dash-sort-btn:hover{color:var(--gold-soft)}
 .dash-sort-btn:focus-visible{outline:2px solid var(--gold-glow);outline-offset:2px;border-radius:4px}
