@@ -1534,13 +1534,20 @@
 
   // Colonnes = union ordonnee des entrees de tous les personnages, meme regle
   // de tri que l'addon (categorie, puis ordre, puis cle).
+  // L'en-tete vient du personnage vu le plus recemment (lastSeen) : un reroll
+  // pas reconnecte garde un ancien libelle (ex. "Mythique+" devenu "Donjons").
   function weeklyColumns(profiles) {
-    var cols = [], seen = {};
+    var cols = [], byKey = {};
     profiles.forEach(function (p) {
+      var seenAt = (p.weekly && p.weekly.lastSeen) || 0;
       ((p.weekly && p.weekly.entries) || []).forEach(function (e) {
-        if (!seen[e.key]) {
-          seen[e.key] = 1;
-          cols.push({ key: e.key, header: e.short || e.label || e.key, category: e.category, order: e.order || 100 });
+        var col = byKey[e.key];
+        if (!col) {
+          col = byKey[e.key] = { key: e.key, header: e.short || e.label || e.key, category: e.category, order: e.order || 100, seenAt: seenAt };
+          cols.push(col);
+        } else if (seenAt > col.seenAt) {
+          col.header = e.short || e.label || e.key;
+          col.seenAt = seenAt;
         }
       });
     });
