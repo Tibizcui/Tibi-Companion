@@ -1563,9 +1563,28 @@
   var WEEKLY_CTA = '<p class="dash-empty">Aucune donnee de semaine dans ce code. Installe <strong>WeeklyCompass</strong> ' +
     '(avec Stats) pour voir ici ce qu\'il reste a faire cette semaine sur chacun de tes personnages.</p>';
 
+  // Cartes repliables (Cette semaine, Personnages, Fiche) : bouton
+  // "+ Deplier / - Replier" dans l'en-tete, meme libelle que les tuiles
+  // resume (tileHtml). Repliees par defaut, etat dans state.sectionOpen
+  // (action "toggle-section"). Repliee, la carte n'est qu'un en-tete : le
+  // contenu n'est meme pas calcule (cf. sectionCard au point d'appel).
+  function sectionToggle(key, color, open) {
+    return '<button type="button" class="dash-sort-btn" data-action="toggle-section" data-value="' + esc(key) + '" aria-expanded="' + open + '"' +
+      ' style="color:' + (open ? color : "var(--muted)") + ';font-weight:700">' + (open ? "- Replier" : "+ Deplier") + "</button>";
+  }
+  function sectionHead(title, key, color, open) {
+    return '<div class="bi-chart-head"' + (open ? "" : ' style="margin:0"') + '><h3 class="dash-subtitle" style="margin:0;color:' + color + '">' + title + "</h3>" +
+      sectionToggle(key, color, open) + "</div>";
+  }
+  // Carte repliee : en-tete seul, cliquable sur toute sa largeur.
+  function sectionStub(title, key, color) {
+    return '<div class="bi-chart-card" data-action="toggle-section" data-value="' + esc(key) + '" style="border-top-color:' + color + ';cursor:pointer">' +
+      sectionHead(title, key, color, false) + "</div>";
+  }
+
   function weeklyCard(body, note) {
     return '<div class="bi-chart-card wk-card" style="border-top-color:' + WEEKLY_ACCENT + '">' +
-      '<div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + WEEKLY_ACCENT + '">Cette semaine</h3></div>' +
+      sectionHead("Cette semaine", "weekly", WEEKLY_ACCENT, true) +
       body + (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
   }
 
@@ -1654,9 +1673,10 @@
   function liveKeystone(c) {
     return (c && c.keystone && (!c.keystone.expiresAt || c.keystone.expiresAt > nowSec())) ? c.keystone : null;
   }
+  var COMPASS_SECTION_KEYS = { Personnages: "chars", Fiche: "sheet" };
   function compassCard(title, body, note, extraClass) {
     return '<div class="bi-chart-card cp-card' + (extraClass ? " " + extraClass : "") + '" style="border-top-color:' + COMPASS_ACCENT + '">' +
-      '<div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + COMPASS_ACCENT + '">' + title + "</h3></div>" +
+      sectionHead(title, COMPASS_SECTION_KEYS[title], COMPASS_ACCENT, true) +
       body + (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
   }
   // Banque de Bataillon : le releve le plus recent parmi les profils du code.
@@ -2086,6 +2106,9 @@
       // principe que l'addon Stats (UI.lua, view.summaryExpanded) : repliees
       // par defaut, cliquer sur la tuile deplie son detail complet.
       summaryExpanded: {},
+      // Cartes Cette semaine / Personnages / Fiche : repliees par defaut
+      // (sectionStub, action "toggle-section").
+      sectionOpen: {},
     };
     // startOnAccount (Tibi Companion) : a l'ouverture on affiche le profil
     // virtuel "Compte" (tous les personnages) plutot que le 1er personnage.
@@ -2187,9 +2210,13 @@
         html += '<div class="bi-chart-card" data-event-detail style="border-top-color:' + evColor + '"><div class="bi-chart-head"><h3 class="dash-subtitle" style="margin:0;color:' + evColor + '">Detail : ' + esc(evLabel) + '</h3></div>' +
           renderEventLogTable(active, state.eventMetric, win, state.eventSort, state.eventExpFilter) + "</div>";
       }
-      html += active.id === ALL_PROFILES_ID ? renderWeeklyGrid(state.profiles) : renderWeeklyDetail(active);
+      var isAccount = active.id === ALL_PROFILES_ID;
+      html += !state.sectionOpen.weekly ? sectionStub("Cette semaine", "weekly", WEEKLY_ACCENT)
+        : isAccount ? renderWeeklyGrid(state.profiles) : renderWeeklyDetail(active);
       // Section publique (fixed) : l'or n'y est jamais affiche.
-      html += active.id === ALL_PROFILES_ID ? renderCompassGrid(state.profiles, fixed, state.compassSort) : renderSheet(active, fixed);
+      var cpKey = isAccount ? "chars" : "sheet";
+      html += !state.sectionOpen[cpKey] ? sectionStub(isAccount ? "Personnages" : "Fiche", cpKey, COMPASS_ACCENT)
+        : isAccount ? renderCompassGrid(state.profiles, fixed, state.compassSort) : renderSheet(active, fixed);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -2364,6 +2391,11 @@
           var evCard = container.querySelector("[data-event-detail]");
           if (evCard && evCard.scrollIntoView) evCard.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+      }
+      else if (action === "toggle-section") {
+        var secKey = el.dataset.value;
+        state.sectionOpen[secKey] = !state.sectionOpen[secKey];
+        render();
       }
       else if (action === "toggle-summary") {
         var sKey = el.dataset.value;
