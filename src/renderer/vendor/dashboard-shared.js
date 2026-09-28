@@ -1024,6 +1024,110 @@
     return wrap(chips + filters + table, note);
   }
 
+  // ---------------------------------------------------------------------
+  // Carte Legendaires (LegTracker 7.1.5.31). Source : data.legendaries du
+  // code d'export (Stats/Export.lua collectLegendaries, recopie de
+  // LegTrackerDB.dashboard) = {at, by, exts:[{key, label, items:[{id, name,
+  // status, via, legacy, owners["Nom-Royaume"], step, steps, compDone,
+  // compTotal}]}]}. Commun au compte : meme valeur sur chaque profil du code.
+  // Absent = LegTracker ou Stats trop anciens, la carte l'explique.
+  // ---------------------------------------------------------------------
+  var LEG_ACCENT = "#ff6d0b";   // orange du logo LegTracker
+  var LEG_VIA = { achievement: "tour de force", transmog: "apparence apprise" };
+
+  function latestLegendaries(profiles) {
+    var best = null;
+    (profiles || []).forEach(function (p) {
+      var l = p.legendaries;
+      if (l && Array.isArray(l.exts) && (!best || (l.at || 0) > (best.at || 0))) best = l;
+    });
+    return best;
+  }
+
+  function renderLegendaryCard(profiles, activeId, view) {
+    var color = LEG_ACCENT;
+    function wrap(body, note) {
+      return '<div class="bi-chart-card leg-card" style="border-top-color:' + color + '">' +
+        sectionHead("Legendaires", "legs", color, true) + body +
+        (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+    }
+    var data = latestLegendaries(profiles);
+    if (!data) {
+      return wrap('<p class="dash-empty">Aucun legendaire dans ce code. Ils sont releves par <strong>LegTracker</strong> ' +
+        "(7.1.5.31 ou plus) et exportes par <strong>Stats</strong> : fais un /reload avec les deux actifs, puis regenere ton code.</p>");
+    }
+    var classOf = {};
+    (profiles || []).forEach(function (p) { if (p.char) classOf[p.id] = p.char.class; });
+
+    var got = 0, total = 0, inProgress = 0;
+    data.exts.forEach(function (ext) {
+      (ext.items || []).forEach(function (it) {
+        total++;
+        if (it.status === "OBTAINED") got++;
+        else if (it.status === "IN_PROGRESS") inProgress++;
+      });
+    });
+    var pct = total ? Math.round(got * 100 / total) : 0;
+    var chips = '<div class="rep-summary leg-summary">' +
+      "<span><strong>" + got + " / " + total + "</strong> obtenus</span>" +
+      '<span class="leg-bar-wrap"><span class="dash-mini-bar leg-bar"><span style="width:' + pct + '%"></span></span>' + pct + "%</span>" +
+      (inProgress ? "<span><strong>" + inProgress + "</strong> en cours</span>" : "") +
+      "</div>";
+    var filters = '<div class="bi-chart-subhead rep-filters">' +
+      '<button type="button" class="filter-btn' + (view.hideObtained ? " active" : "") + '" data-action="leg-hide-obtained" aria-pressed="' + view.hideObtained + '">Masquer les obtenus</button>' +
+      '<button type="button" class="filter-btn' + (view.hideLegacy ? " active" : "") + '" data-action="leg-hide-legacy" aria-pressed="' + view.hideLegacy + '">Masquer les legacy</button>' +
+      "</div>";
+
+    function statusCell(it) {
+      if (it.status === "OBTAINED") {
+        var via = LEG_VIA[it.via];
+        return '<span class="leg-pill leg-ok">Obtenu</span>' + (via ? ' <span class="rep-nums">' + via + "</span>" : "");
+      }
+      if (it.status === "IN_PROGRESS") {
+        var parts = [];
+        if (it.step && it.steps) parts.push("etape " + it.step + "/" + it.steps);
+        if (it.compTotal) parts.push((it.compDone || 0) + "/" + it.compTotal + " composants");
+        return '<span class="leg-pill leg-prog">En cours</span>' + (parts.length ? ' <span class="rep-nums">' + esc(parts.join(", ")) + "</span>" : "");
+      }
+      return '<span class="leg-pill leg-no">Non obtenu</span>';
+    }
+    function ownersCell(it) {
+      if (!it.owners || !it.owners.length) return '<span class="rep-nums">-</span>';
+      return it.owners.map(function (o) {
+        var name = String(o).split("-")[0];
+        var style = 'style="color:' + classColor(classOf[o]) + (o === activeId ? ';font-weight:800' : "") + '"';
+        return "<span " + style + ' title="' + esc(o) + '">' + esc(name) + "</span>";
+      }).join(", ");
+    }
+
+    var rows = "";
+    data.exts.forEach(function (ext) {
+      var items = (ext.items || []).filter(function (it) {
+        if (view.hideObtained && it.status === "OBTAINED") return false;
+        if (view.hideLegacy && it.legacy) return false;
+        return true;
+      });
+      if (!items.length) return;
+      var extGot = (ext.items || []).filter(function (it) { return it.status === "OBTAINED"; }).length;
+      rows += '<tr class="leg-ext"><td colspan="3">' + esc(ext.label || ext.key || "?") +
+        ' <span class="rep-nums">' + extGot + "/" + (ext.items || []).length + "</span></td></tr>";
+      rows += items.map(function (it) {
+        var link = it.id ? '<a href="https://www.wowhead.com/fr/item=' + encodeURIComponent(it.id) + '" target="_blank" rel="noopener">' + esc(it.name || ("#" + it.id)) + "</a>"
+          : esc(it.name || "?");
+        return "<tr><td>" + link + (it.legacy ? ' <span class="rep-nums">legacy</span>' : "") + "</td>" +
+          "<td>" + statusCell(it) + "</td><td>" + ownersCell(it) + "</td></tr>";
+      }).join("");
+    });
+    var table = rows
+      ? '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table leg-table"><thead><tr><th>Legendaire</th><th>Statut</th><th>Detenu par</th></tr></thead><tbody>' +
+        rows + "</tbody></table></div>"
+      : '<p class="dash-empty">Aucun legendaire ne correspond a ces filtres.</p>';
+    var note = "Commun au compte, releve par LegTracker " + (data.by ? "sur " + esc(String(data.by).split("-")[0]) + " " : "") +
+      esc(fmtAgo(data.at)) + ". \"Detenu par\" ne liste que les personnages ou LegTracker a ete ouvert ; " +
+      "un tour de force ou une apparence apprise suffisent a marquer un objet obtenu.";
+    return wrap(chips + filters + table, note);
+  }
+
   function renderReputationDetail(char) {
     var list = char && char.reputations && char.reputations.list;
     var rows = [];
@@ -2244,6 +2348,7 @@
       compassSort: { key: "name", dir: "asc" },
       // Carte Reputations : filtre de systeme, masquage des max, tri
       repView: { system: "all", hideMaxed: true, hideNotStarted: true, sort: { key: "gain", dir: "desc" } },
+      legView: { hideObtained: false, hideLegacy: false },
       profFilter: "overall",
       // Detail par evenement (clic sur une carte KPI) : eventMetric = cle de
       // la carte ouverte (null = aucune). eventSort separe de `sort`
@@ -2372,6 +2477,8 @@
       html += !state.sectionOpen.reps ? sectionStub("Reputations", "reps", REP_ACCENT)
         : renderReputationCard(isAccount ? mergeAccountReputations(state.profiles)
             : (active.char && active.char.reputations && active.char.reputations.list), isAccount, state.repView);
+      html += !state.sectionOpen.legs ? sectionStub("Legendaires", "legs", LEG_ACCENT)
+        : renderLegendaryCard(state.profiles, active.id, state.legView);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -2557,6 +2664,8 @@
         else state.repView.sort = { key: rk, dir: rk === "name" ? "asc" : "desc" };
         render();
       }
+      else if (action === "leg-hide-obtained") { state.legView.hideObtained = !state.legView.hideObtained; render(); }
+      else if (action === "leg-hide-legacy") { state.legView.hideLegacy = !state.legView.hideLegacy; render(); }
       else if (action === "toggle-section") {
         var secKey = el.dataset.value;
         state.sectionOpen[secKey] = !state.sectionOpen[secKey];
@@ -2873,6 +2982,8 @@
           // recopiee sur chaque profil du code). Absents = addon ancien.
           compass: entry.compass || null,
           warband: data.warband || null,
+          // LegTracker 7.1.5.31 : legendaires du compte (meme valeur sur chaque profil)
+          legendaries: data.legendaries || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -3025,6 +3136,7 @@
         weekly: a.weekly || b.weekly || null,
         compass: a.compass || b.compass || null,
         warband: a.warband || b.warband || null,
+        legendaries: a.legendaries || b.legendaries || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };

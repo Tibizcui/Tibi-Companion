@@ -1005,3 +1005,16 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 
 /* Extension estimee (rattrapage Stats 7.1.5.16, anciens evenements) */
 .dash-exp-est{opacity:.65;cursor:help}
+
+/* -- Carte Legendaires (LegTracker 7.1.5.31) -- */
+.leg-summary{align-items:center}
+.leg-bar-wrap{display:inline-flex;align-items:center;gap:6px}
+.leg-bar{width:120px}
+.leg-bar span{background:linear-gradient(90deg,#ff6d0b,#ffb347)}
+.leg-table a{color:var(--text);text-decoration:none}
+.leg-table a:hover{color:#ffb347;text-decoration:underline}
+.leg-ext td{color:#ff6d0b;font-weight:800;padding-top:10px;border-bottom:1px solid rgba(255,109,11,.35)}
+.leg-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.72rem;font-weight:800}
+.leg-ok{color:#0b1a0d;background:#6bd97a}
+.leg-prog{color:#1a1402;background:#ffd24a}
+.leg-no{color:var(--muted);border:1px solid rgba(255,255,255,.18)}
