@@ -810,6 +810,18 @@ a{color:inherit}
 .cp-vault.cp-stale{opacity:.55}
 .cp-raid{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;padding:2px 0}
 .cp-raid em{font-style:normal;font-size:.75rem;margin-left:4px}
+
+/* -- Carte Reputations (toutes les factions, filtres + tri) -- */
+.rep-summary{display:flex;flex-wrap:wrap;gap:8px 18px;margin:0 0 10px;color:var(--muted);font-size:.85rem}
+.rep-summary strong{color:var(--text);font-weight:800}
+.rep-ready-chip strong,.rep-ready-chip{color:#ffd24a}
+.rep-filters{flex-wrap:wrap;gap:8px}
+.rep-table-wrap{max-height:520px;overflow:auto}
+.rep-table td{white-space:nowrap}
+.rep-nums{color:var(--muted);font-size:.78rem}
+.rep-max{color:#c9a0ff;font-weight:800}
+.rep-ready{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;font-size:.7rem;font-weight:800;
+  color:#120c02;background:linear-gradient(90deg,#ffd24a,#f4b400);vertical-align:middle}
 .dash-sort-btn{all:unset;cursor:pointer;color:inherit;font:inherit;font-weight:700;white-space:nowrap}
 .dash-sort-btn:hover{color:var(--gold-soft)}
 .dash-sort-btn:focus-visible{outline:2px solid var(--gold-glow);outline-offset:2px;border-radius:4px}

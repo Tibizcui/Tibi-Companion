@@ -874,6 +874,156 @@
     return "";
   }
 
+  // ==========================================================================
+  // CARTE REPUTATIONS (toutes les factions, pas seulement les 10 recentes)
+  // ==========================================================================
+  // Source : char.reputations.list exporte par Stats (Core.lua,
+  // ReadReputationInfo) : {factionID, system, name, label, rank, cur, max,
+  // pct, maxed, paragonReady, reaction, lastGainAt}. Aucun changement du
+  // format d'export : lecture seule de champs deja presents.
+  var REP_ACCENT = "#c9a0ff";
+  var REP_SYSTEM_FILTERS = [["all", "Toutes"], ["renown", "Renom"], ["friendship", "Amitie"], ["classic", "Classique"]];
+
+  // Score de progression comparable entre personnages d'une meme faction
+  function repScore(info) {
+    var base = info.system === "renown" ? (info.rank || 0) : (info.reaction || 0);
+    return base * 10 + Math.min(1, info.pct || 0) + (info.maxed ? 1000 : 0);
+  }
+
+  // Vue Compte : une ligne par faction, la meilleure progression parmi les
+  // personnages (le Renom de Bataillon est identique partout ; pour une
+  // reputation propre au personnage, on montre qui est le plus avance).
+  function mergeAccountReputations(profiles) {
+    var byKey = {}, order = [];
+    (profiles || []).forEach(function (p) {
+      var list = p.char && p.char.reputations && p.char.reputations.list;
+      if (!list) return;
+      list.forEach(function (info) {
+        var key = info.factionID || info.name;
+        if (!key) return;
+        var cur = byKey[key];
+        if (!cur) {
+          byKey[key] = Object.assign({}, info, { bestChar: p.char.name, anyParagonReady: !!info.paragonReady });
+          order.push(key);
+          return;
+        }
+        var gain = Math.max(cur.lastGainAt || 0, info.lastGainAt || 0) || null;
+        var anyReady = cur.anyParagonReady || !!info.paragonReady;
+        if (repScore(info) > repScore(cur)) {
+          cur = byKey[key] = Object.assign({}, info, { bestChar: p.char.name });
+        }
+        cur.lastGainAt = gain;
+        cur.anyParagonReady = anyReady;
+      });
+    });
+    return order.map(function (k) { return byKey[k]; });
+  }
+
+  function fmtAgo(ts) {
+    if (!ts) return "-";
+    var sec = nowSec() - ts;
+    if (sec < 3600) return "a l'instant";
+    if (sec < 86400) return "il y a " + Math.floor(sec / 3600) + " h";
+    return "il y a " + Math.floor(sec / 86400) + " j";
+  }
+
+  function renderReputationCard(list, isAccount, view) {
+    var color = REP_ACCENT;
+    var all = list || [];
+    function wrap(body, note) {
+      return '<div class="bi-chart-card rep-card" style="border-top-color:' + color + '">' +
+        sectionHead("Reputations", "reps", color, true) + body +
+        (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+    }
+    if (!all.length) {
+      return wrap('<p class="dash-empty">Aucune reputation dans ce code. Elles sont relevees par <strong>Stats</strong> : ' +
+        "fais un /reload avec Stats actif, puis regenere ton code.</p>");
+    }
+
+    var ready = function (r) { return isAccount ? !!r.anyParagonReady : !!r.paragonReady; };
+    var maxedCount = all.filter(function (r) { return r.maxed; }).length;
+    var readyCount = all.filter(ready).length;
+
+    // Faction jamais rencontree : classique, Neutre, 0 rep, aucun gain releve
+    // (un reroll en liste une cinquantaine, qui noyaient le tableau)
+    var notStarted = function (r) { return r.system === "classic" && r.reaction === 4 && !r.cur && !r.lastGainAt; };
+    var notStartedCount = all.filter(notStarted).length;
+
+    // Filtres : systeme + masquage des reputations au max (un coffre pret
+    // reste toujours visible, c'est justement ce qu'on veut voir) + masquage
+    // des factions non commencees
+    var rows = all.filter(function (r) {
+      if (view.system !== "all" && r.system !== view.system) return false;
+      if (view.hideMaxed && r.maxed && !ready(r)) return false;
+      if (view.hideNotStarted && notStarted(r)) return false;
+      return true;
+    });
+
+    var sortKey = view.sort.key, dir = view.sort.dir === "asc" ? 1 : -1;
+    var sortVal = {
+      name: function (r) { return (r.name || "").toLowerCase(); },
+      level: function (r) { return repScore(r); },
+      progress: function (r) { return r.maxed ? 2 : Math.min(1, r.pct || 0); },
+      gain: function (r) { return r.lastGainAt || 0; },
+    }[sortKey] || function (r) { return r.lastGainAt || 0; };
+    rows.sort(function (a, b) {
+      var va = sortVal(a), vb = sortVal(b);
+      if (va < vb) return -dir;
+      if (va > vb) return dir;
+      return (a.name || "").localeCompare(b.name || "", "fr");
+    });
+
+    var chips = '<div class="rep-summary">' +
+      "<span><strong>" + all.length + "</strong> suivies</span>" +
+      "<span><strong>" + maxedCount + "</strong> au max</span>" +
+      (readyCount ? '<span class="rep-ready-chip"><strong>' + readyCount + "</strong> coffre" + (readyCount > 1 ? "s" : "") +
+        " de Paragon pret" + (readyCount > 1 ? "s" : "") + "</span>" : "") +
+      "</div>";
+
+    var filters = '<div class="bi-chart-subhead rep-filters">' +
+      REP_SYSTEM_FILTERS.map(function (f) {
+        var n = f[0] === "all" ? all.length : all.filter(function (r) { return r.system === f[0]; }).length;
+        if (f[0] !== "all" && n === 0) return "";
+        var on = view.system === f[0];
+        return '<button type="button" class="filter-btn' + (on ? " active" : "") + '" data-action="rep-system" data-value="' + f[0] + '" aria-pressed="' + on + '">' +
+          f[1] + " (" + n + ")</button>";
+      }).join("") +
+      '<button type="button" class="filter-btn' + (view.hideMaxed ? " active" : "") + '" data-action="rep-hide-maxed" aria-pressed="' + view.hideMaxed + '">Masquer les max</button>' +
+      (notStartedCount ? '<button type="button" class="filter-btn' + (view.hideNotStarted ? " active" : "") + '" data-action="rep-hide-notstarted" aria-pressed="' + view.hideNotStarted + '">Masquer les non commencees (' + notStartedCount + ")</button>" : "") +
+      "</div>";
+
+    function th(key, label) {
+      var active = sortKey === key;
+      var arrow = active ? (view.sort.dir === "asc" ? " &#9650;" : " &#9660;") : "";
+      return '<th><button type="button" class="dash-sort-btn" data-action="rep-sort" data-key="' + key + '" aria-sort="' +
+        (active ? (view.sort.dir === "asc" ? "ascending" : "descending") : "none") + '">' + label + arrow + "</button></th>";
+    }
+    var head = "<tr>" + th("name", "Faction") + th("level", "Niveau") + th("progress", "Progression") +
+      th("gain", "Dernier gain") + (isAccount ? "<th>Personnage</th>" : "") + "</tr>";
+
+    var body = rows.map(function (r) {
+      var pct = Math.min(100, Math.round((r.pct || 0) * 100));
+      var progress = r.maxed
+        ? '<span class="rep-max">Max</span>'
+        : '<div class="dash-mini-bar"><span style="width:' + pct + '%"></span></div>' +
+          '<span class="rep-nums">' + fmtNum(r.cur || 0) + " / " + fmtNum(r.max || 0) + "</span>";
+      var badge = ready(r) ? ' <span class="rep-ready" title="Coffre de Paragon a recuperer">Coffre pret</span>' : "";
+      return "<tr><td>" + esc(r.name || "?") + badge + "</td>" +
+        "<td>" + esc(repSystemLabel(r)) + "</td>" +
+        "<td>" + progress + "</td>" +
+        "<td>" + esc(fmtAgo(r.lastGainAt)) + "</td>" +
+        (isAccount ? "<td>" + esc(r.bestChar || "") + "</td>" : "") + "</tr>";
+    }).join("");
+
+    var table = rows.length
+      ? '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead>' + head + "</thead><tbody>" + body + "</tbody></table></div>"
+      : '<p class="dash-empty">Aucune reputation ne correspond a ces filtres.</p>';
+
+    var note = (isAccount ? "Vue Compte : une ligne par faction, avec la meilleure progression parmi tes personnages. " : "") +
+      "\"Dernier gain\" n'est connu que pour les gains releves par Stats depuis l'ajout de ce suivi.";
+    return wrap(chips + filters + table, note);
+  }
+
   function renderReputationDetail(char) {
     var list = char && char.reputations && char.reputations.list;
     var rows = [];
@@ -2092,6 +2242,8 @@
       sort: { key: "date", dir: "desc" },
       // Tri de la carte Personnages (WeeklyCompass).
       compassSort: { key: "name", dir: "asc" },
+      // Carte Reputations : filtre de systeme, masquage des max, tri
+      repView: { system: "all", hideMaxed: true, hideNotStarted: true, sort: { key: "gain", dir: "desc" } },
       profFilter: "overall",
       // Detail par evenement (clic sur une carte KPI) : eventMetric = cle de
       // la carte ouverte (null = aucune). eventSort separe de `sort`
@@ -2217,6 +2369,9 @@
       var cpKey = isAccount ? "chars" : "sheet";
       html += !state.sectionOpen[cpKey] ? sectionStub(isAccount ? "Personnages" : "Fiche", cpKey, COMPASS_ACCENT)
         : isAccount ? renderCompassGrid(state.profiles, fixed, state.compassSort) : renderSheet(active, fixed);
+      html += !state.sectionOpen.reps ? sectionStub("Reputations", "reps", REP_ACCENT)
+        : renderReputationCard(isAccount ? mergeAccountReputations(state.profiles)
+            : (active.char && active.char.reputations && active.char.reputations.list), isAccount, state.repView);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -2391,6 +2546,16 @@
           var evCard = container.querySelector("[data-event-detail]");
           if (evCard && evCard.scrollIntoView) evCard.scrollIntoView({ behavior: "smooth", block: "start" });
         }
+      }
+      else if (action === "rep-system") { state.repView.system = el.dataset.value || "all"; render(); }
+      else if (action === "rep-hide-maxed") { state.repView.hideMaxed = !state.repView.hideMaxed; render(); }
+      else if (action === "rep-hide-notstarted") { state.repView.hideNotStarted = !state.repView.hideNotStarted; render(); }
+      else if (action === "rep-sort") {
+        var rk = el.dataset.key;
+        if (state.repView.sort.key === rk) state.repView.sort.dir = state.repView.sort.dir === "asc" ? "desc" : "asc";
+        // Nom : ordre alphabetique ; le reste : le plus grand / le plus recent en haut
+        else state.repView.sort = { key: rk, dir: rk === "name" ? "asc" : "desc" };
+        render();
       }
       else if (action === "toggle-section") {
         var secKey = el.dataset.value;
