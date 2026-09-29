@@ -977,6 +977,9 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 .prof-bar{height:7px;border-radius:999px;background:var(--graphite-3);overflow:hidden;margin:0 0 6px}
 .prof-bar span{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-2));border-radius:999px}
 .prof-nums{color:var(--muted);font-size:.76rem}
+.prof-extra{margin-top:8px;padding-top:8px;border-top:1px solid var(--line);color:var(--muted);font-size:.74rem;line-height:1.55}
+.prof-warn{color:#ff8c00;font-weight:800}
+.prof-kp{color:var(--gold-soft)}
 
 /* -- Repartition par personnage (colonne de gauche, vue "Compte") -- */
 .acct-grid{display:grid;gap:12px}
@@ -1013,6 +1016,19 @@ svg.bi-chart{width:100%;height:auto;display:block;overflow:visible}
 .leg-bar span{background:linear-gradient(90deg,#ff6d0b,#ffb347)}
 .leg-table a{color:var(--text);text-decoration:none}
 .leg-table a:hover{color:#ffb347;text-decoration:underline}
+/* Carte Leveling (LvlHistory 7.1.5.35) - accent vert #5ee223 */
+.lvl-h{margin:14px 0 6px;font-size:.8rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.lvl-bars{display:flex;align-items:flex-end;gap:2px;height:110px;padding:6px 0 0;border-bottom:1px solid var(--graphite-3)}
+.lvl-bar{flex:1 1 0;min-width:3px;height:100%;display:flex;align-items:flex-end;cursor:default}
+.lvl-bar span{display:block;width:100%;border-radius:2px 2px 0 0;background:linear-gradient(180deg,#9dff6b,#5ee223)}
+.lvl-bar:hover span{background:#c8ffad}
+.lvl-partial span{background:var(--graphite-3)}
+.lvl-axis{display:flex;justify-content:space-between;font-size:.75rem;color:var(--muted);margin-top:3px}
+.lvl-src{display:flex;height:10px;border-radius:999px;overflow:hidden;background:var(--graphite-3)}
+.lvl-src span{display:block;height:100%}
+.lvl-legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:6px;font-size:.82rem;color:var(--muted)}
+.lvl-legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.lvl-legend strong{color:var(--text)}
 .leg-ext td{color:#ff6d0b;font-weight:800;padding-top:10px;border-bottom:1px solid rgba(255,109,11,.35)}
 .leg-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:.72rem;font-weight:800}
 .leg-ok{color:#0b1a0d;background:#6bd97a}

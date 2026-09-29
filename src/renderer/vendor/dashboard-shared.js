@@ -1025,6 +1025,139 @@
   }
 
   // ---------------------------------------------------------------------
+  // Carte Leveling (LvlHistory 7.1.5.35). Source : chars[k].leveling du code
+  // d'export (Stats/Export.lua collectLeveling, recopie de
+  // LvlHistoryDB.dashboard) = {at, max, lvl, mode, play, seen, race, rest,
+  // onLevel{l,t}, levels[{l,t,p}], sess[{d,dur,m,xph,gold,l0,l1,q,dg,dv}],
+  // xpSrc{q,d,g,o}, best{xph,goldh}, dgn, delves, quests{t,d,w}}.
+  // Absent = LvlHistory ou Stats trop anciens, la carte l'explique.
+  // ---------------------------------------------------------------------
+  var LVL_ACCENT = "#5ee223";   // vert du logo LvlHistory
+  var LVL_SRC = [
+    { key: "q", label: "Quetes", color: "#5ee223" },
+    { key: "d", label: "Donjons", color: "#4f9ce0" },
+    { key: "g", label: "Gouffres", color: "#e4b64a" },
+    { key: "o", label: "Autre", color: "#8a8f98" },
+  ];
+  var LVL_CTA = '<p class="dash-empty">Aucune donnee de leveling dans ce code. Elles viennent de <strong>LvlHistory</strong> ' +
+    "(7.1.5.35 ou plus) et sont exportees par <strong>Stats</strong> : fais un /reload avec les deux actifs, puis regenere ton code.</p>";
+
+  function fmtXph(v) {
+    v = v || 0;
+    if (v >= 1000000) return (v / 1000000).toFixed(1).replace(".", ",") + " M";
+    if (v >= 1000) return fmtNum(Math.round(v / 1000)) + " k";
+    return fmtNum(v);
+  }
+  function lvlWrap(body, note) {
+    return '<div class="bi-chart-card lvl-card" style="border-top-color:' + LVL_ACCENT + '">' +
+      sectionHead("Leveling", "lvl", LVL_ACCENT, true) + body +
+      (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+
+  function lvlSourcesHtml(src) {
+    if (!src) return "";
+    var total = 0;
+    LVL_SRC.forEach(function (s) { total += src[s.key] || 0; });
+    if (!total) return "";
+    var bar = "", legend = "";
+    LVL_SRC.forEach(function (s) {
+      var v = src[s.key] || 0;
+      if (!v) return;
+      var pct = v * 100 / total;
+      bar += '<span style="width:' + pct.toFixed(2) + "%;background:" + s.color + '" title="' + s.label + " : " + fmtNum(v) + ' XP"></span>';
+      legend += '<span><i style="background:' + s.color + '"></i>' + s.label + " <strong>" + Math.round(pct) + "%</strong></span>";
+    });
+    return '<h4 class="lvl-h">Origine de l\'XP (a vie)</h4><div class="lvl-src">' + bar + '</div><div class="lvl-legend">' + legend + "</div>";
+  }
+
+  function lvlTimelineHtml(lv) {
+    var levels = (lv.levels || []).filter(function (e) { return e && e.l && e.t; });
+    if (!levels.length) {
+      return '<h4 class="lvl-h">Temps par niveau</h4><p class="dash-empty">La chronologie se remplit a chaque niveau gagne depuis l\'installation de LvlHistory 7.1.5.35.</p>';
+    }
+    var maxT = 1;
+    levels.forEach(function (e) { if (e.t > maxT) maxT = e.t; });
+    var bars = levels.map(function (e) {
+      var h = Math.max(3, Math.round(e.t * 100 / maxT));
+      return '<span class="lvl-bar' + (e.p ? " lvl-partial" : "") + '" title="Niveau ' + e.l + " > " + (e.l + 1) + " : " +
+        (e.p ? "~" : "") + fmtHours(e.t) + (e.p ? " (suivi partiel)" : "") + '"><span style="height:' + h + '%"></span></span>';
+    }).join("");
+    var first = levels[0].l, last = levels[levels.length - 1].l;
+    return '<h4 class="lvl-h">Temps par niveau</h4><div class="lvl-bars">' + bars + "</div>" +
+      '<div class="lvl-axis"><span>' + first + "</span><span>" + (last + 1) + "</span></div>";
+  }
+
+  function lvlSessionsHtml(lv) {
+    var sess = (lv.sess || []).slice().reverse();
+    if (!sess.length) return "";
+    var rows = sess.map(function (s) {
+      var d = s.d ? new Date(s.d * 1000) : null;
+      var when = d ? String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + " " +
+        String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0") : "-";
+      var rate = s.m === "f"
+        ? (s.dur ? fmtGoldShort((s.gold || 0) / s.dur * 3600) + " po/h" : "-")
+        : (s.xph ? fmtXph(s.xph) + " XP/h" : "-");
+      var lvls = (s.l0 && s.l1 && s.l1 > s.l0) ? s.l0 + " > " + s.l1 : (s.l1 || "-");
+      return "<tr><td>" + when + "</td><td>" + fmtDuration(s.dur) + "</td><td>" + (s.m === "f" ? "Farming" : "Leveling") +
+        "</td><td>" + rate + "</td><td>" + lvls + "</td><td>" + (s.q || 0) + "</td><td>" + ((s.dg || 0) + (s.dv || 0)) + "</td></tr>";
+    }).join("");
+    return '<h4 class="lvl-h">Dernieres sessions</h4><div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table">' +
+      "<thead><tr><th>Debut</th><th>Duree</th><th>Mode</th><th>Rythme</th><th>Niveaux</th><th>Quetes</th><th>Donjons + gouffres</th></tr></thead><tbody>" +
+      rows + "</tbody></table></div>";
+  }
+
+  function renderLevelingDetail(active) {
+    var lv = active && active.leveling;
+    if (!lv) return lvlWrap(LVL_CTA);
+    var max = lv.max || 0;
+    var chips = [];
+    chips.push("<span>Niveau <strong>" + (lv.lvl || "?") + (max ? " / " + max : "") + "</strong></span>");
+    if (lv.play) chips.push("<span><strong>" + fmtHours(lv.play) + "</strong> suivies</span>");
+    if (lv.race) chips.push("<span>Montee 10 > " + (max || "max") + " : <strong>" + fmtHours(lv.race) + "</strong></span>");
+    else if (lv.onLevel && lv.onLevel.l) chips.push("<span>Au niveau " + lv.onLevel.l + " depuis <strong>" + fmtHours(lv.onLevel.t) + "</strong></span>");
+    if (lv.rest != null) chips.push("<span>Repos <strong>" + lv.rest + " %</strong> d'un niveau</span>");
+    var q = lv.quests || {};
+    if (q.t) chips.push("<span><strong>" + fmtNum(q.t) + "</strong> quetes" + (q.d ? " (" + fmtNum(q.d) + " journ.)" : "") + "</span>");
+    if (lv.dgn || lv.delves) chips.push("<span><strong>" + fmtNum(lv.dgn) + "</strong> donjons, <strong>" + fmtNum(lv.delves) + "</strong> gouffres</span>");
+    var best = lv.best || {};
+    if (best.xph) chips.push("<span>Record <strong>" + fmtXph(best.xph) + " XP/h</strong></span>");
+    if (best.goldh) chips.push("<span>Record <strong>" + fmtGoldShort(best.goldh) + " po/h</strong></span>");
+    var body = '<div class="rep-summary lvl-summary">' + chips.join("") + "</div>" +
+      lvlTimelineHtml(lv) + lvlSourcesHtml(lv.xpSrc) + lvlSessionsHtml(lv);
+    return lvlWrap(body, "Temps de jeu mesure par LvlHistory (en jeu uniquement). Un niveau marque ~ a ete entame avant le suivi.");
+  }
+
+  // Vue Compte : une ligne par personnage, meilleure montee mise en avant.
+  function renderLevelingGrid(profiles) {
+    var list = (profiles || []).filter(function (p) { return p.leveling && p.id !== ALL_PROFILES_ID; });
+    if (!list.length) return lvlWrap(LVL_CTA);
+    list.sort(function (a, b) { return (b.leveling.lvl || 0) - (a.leveling.lvl || 0) || String(a.id).localeCompare(String(b.id)); });
+    var bestRace = null;
+    list.forEach(function (p) { var r = p.leveling.race; if (r && (!bestRace || r < bestRace)) bestRace = r; });
+    var tonight = null;
+    list.forEach(function (p) {
+      var lv = p.leveling;
+      if (lv.max && lv.lvl < lv.max && lv.rest != null && (!tonight || lv.rest > tonight.leveling.rest)) tonight = p;
+    });
+    var rows = list.map(function (p) {
+      var lv = p.leveling, c = p.char || {};
+      var name = '<span style="color:' + classColor(c.class) + ';font-weight:700">' + esc(c.name || p.id) + "</span>";
+      var race = lv.race ? fmtHours(lv.race) + (lv.race === bestRace ? ' <span class="leg-pill leg-ok">record</span>' : "") : "-";
+      var rest = (lv.rest != null && lv.max && lv.lvl < lv.max) ? lv.rest + " %" : "-";
+      return "<tr><td>" + name + "</td><td>" + (lv.lvl || "-") + "</td><td>" + (lv.play ? fmtHours(lv.play) : "-") + "</td><td>" + race +
+        "</td><td>" + rest + "</td><td>" + (lv.best && lv.best.xph ? fmtXph(lv.best.xph) : "-") + "</td><td>" + fmtNum(lv.dgn) + "</td><td>" + fmtNum(lv.delves) + "</td></tr>";
+    }).join("");
+    var head = '<div class="rep-summary lvl-summary"><span><strong>' + list.length + "</strong> personnages suivis</span>" +
+      (bestRace ? "<span>Meilleure montee : <strong>" + fmtHours(bestRace) + "</strong></span>" : "") +
+      (tonight ? "<span>A monter ce soir : <strong>" + esc((tonight.char && tonight.char.name) || tonight.id) + "</strong> (" + tonight.leveling.rest + " % de repos)</span>" : "") +
+      "</div>";
+    var table = '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
+      "<th>Personnage</th><th>Niv.</th><th>Temps suivi</th><th>Montee 10 > max</th><th>Repos</th><th>Record XP/h</th><th>Donjons</th><th>Gouffres</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+    return lvlWrap(head + table, "Repos : estimation au moment du dernier export (auberge : 5 % d'un niveau par tranche de 8 h, plafond 150 %).");
+  }
+
+  // ---------------------------------------------------------------------
   // Carte Legendaires (LegTracker 7.1.5.31). Source : data.legendaries du
   // code d'export (Stats/Export.lua collectLegendaries, recopie de
   // LegTrackerDB.dashboard) = {at, by, exts:[{key, label, items:[{id, name,
@@ -1657,6 +1790,50 @@
     return slug ? "https://wow.zamimg.com/images/wow/icons/medium/" + slug + ".jpg" : null;
   }
 
+  // Lignes SkillTracker 7.1.5.35+ sous la barre d'un metier : concentration
+  // PROJETEE a l'instant de l'affichage (valeur lue en jeu + duree de
+  // recharge apprise par l'addon, jamais une constante inventee), points de
+  // connaissance non depenses, sources de la semaine, arbres de
+  // specialisation. Champ absent (ancien export) -> rien n'est affiche.
+  function fmtSpan(sec) {
+    sec = Math.max(0, Math.floor(sec));
+    var d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+    if (d > 0) return d + " j " + h + " h";
+    if (h > 0) return h + " h " + String(m).padStart(2, "0");
+    return m + " min";
+  }
+  function profExtraHtml(prof) {
+    var out = [];
+    var c = prof && prof.conc;
+    if (c && c.max > 0) {
+      var now = nowSec(), age = Math.max(0, now - (c.t || now));
+      var cur = c.cur || 0, status;
+      if (c.fullSec > 0) {
+        var proj = cur + c.max * age / c.fullSec;
+        if (proj >= c.max) {
+          var since = age - (c.max - cur) * c.fullSec / c.max;
+          cur = c.max;
+          status = '<span class="prof-warn">PLEINE' + (since > 60 ? " depuis " + fmtSpan(since) : "") + "</span>";
+        } else {
+          cur = Math.floor(proj);
+          status = "pleine dans " + fmtSpan((c.max - proj) * c.fullSec / c.max);
+        }
+      } else {
+        status = cur >= c.max ? '<span class="prof-warn">PLEINE</span>' : "lue " + fmtAgo(c.t);
+      }
+      out.push("Concentration " + fmtNum(cur) + " / " + fmtNum(c.max) + " - " + status);
+    }
+    if (prof && prof.kp > 0) out.push('<span class="prof-kp">' + fmtNum(prof.kp) + " connaissance(s) non depensee(s)</span>");
+    if (prof && prof.week && prof.week.total > 0) {
+      out.push("Semaine : " + prof.week.done + " / " + prof.week.total + " source(s) de connaissance");
+    }
+    if (prof && prof.tree && prof.tree.max > 0) {
+      out.push("Specialisations : " + fmtNum(prof.tree.spent) + " / " + fmtNum(prof.tree.max) + " rangs");
+    }
+    if (!out.length) return "";
+    return '<div class="prof-extra">' + out.map(function (l) { return "<div>" + l + "</div>"; }).join("") + "</div>";
+  }
+
   // filterExp absent/"overall" -> prof.base (total agrege toutes extensions,
   // comportement d'origine). Une extension precise -> somme des lignes de
   // prof.lines dont le .exp correspond ; un metier absent de cette extension
@@ -1684,7 +1861,7 @@
         if (!found) return;
       }
       var pct = max ? Math.min(100, Math.round((cur / max) * 100)) : null;
-      entries.push({ name: prof.name, cur: cur, max: max, pct: pct });
+      entries.push({ name: prof.name, cur: cur, max: max, pct: pct, extra: profExtraHtml(prof) });
     });
     if (entries.length === 0) {
       return '<p class="dash-empty">Aucun metier suivi sur cette extension pour ce personnage.</p>';
@@ -1700,6 +1877,7 @@
           (e.pct != null
             ? '<div class="prof-bar"><span style="width:' + e.pct + '%"></span></div><div class="prof-nums">' + fmtNum(e.cur) + " / " + fmtNum(e.max) + "</div>"
             : '<div class="dash-note" style="margin-top:6px">Pas de progression suivie.</div>') +
+          (e.extra || "") +
         "</div>"
       );
     }
@@ -2479,6 +2657,8 @@
             : (active.char && active.char.reputations && active.char.reputations.list), isAccount, state.repView);
       html += !state.sectionOpen.legs ? sectionStub("Legendaires", "legs", LEG_ACCENT)
         : renderLegendaryCard(state.profiles, active.id, state.legView);
+      html += !state.sectionOpen.lvl ? sectionStub("Leveling", "lvl", LVL_ACCENT)
+        : isAccount ? renderLevelingGrid(state.profiles) : renderLevelingDetail(active);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -2984,6 +3164,8 @@
           warband: data.warband || null,
           // LegTracker 7.1.5.31 : legendaires du compte (meme valeur sur chaque profil)
           legendaries: data.legendaries || null,
+          // LvlHistory 7.1.5.35 : chronologie des niveaux, sessions, repos (par perso)
+          leveling: entry.leveling || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -3137,6 +3319,7 @@
         compass: a.compass || b.compass || null,
         warband: a.warband || b.warband || null,
         legendaries: a.legendaries || b.legendaries || null,
+        leveling: a.leveling || b.leveling || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };
