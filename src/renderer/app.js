@@ -20,6 +20,26 @@
   const dashFormError = document.getElementById("dash-form-error");
   const dashResult = document.getElementById("dash-result");
 
+  // Quoi de neuf : version des notes affichees dans #whatsnew (index.html).
+  // A changer a chaque release dont les notes sont mises a jour : la fenetre
+  // s'ouvre alors une seule fois au demarrage suivant.
+  const WN_VERSION = "2.0.22";
+  const WN_KEY = "tibi_companion_whatsnew_seen";
+  const wnDialog = document.getElementById("whatsnew");
+
+  function openWhatsNew() {
+    if (!wnDialog || wnDialog.open) return;
+    if (typeof wnDialog.showModal === "function") wnDialog.showModal();
+    else wnDialog.setAttribute("open", "");
+  }
+  function closeWhatsNew() {
+    if (!wnDialog) return;
+    if (typeof wnDialog.close === "function") wnDialog.close();
+    else wnDialog.removeAttribute("open");
+  }
+  function readSeen() { try { return localStorage.getItem(WN_KEY); } catch (e) { return null; } }
+  function markSeen() { try { localStorage.setItem(WN_KEY, WN_VERSION); } catch (e) { /* stockage indisponible */ } }
+
   let dashApp = null;
   const accountLabels = new Map(); // id -> label, pour les messages de statut
 
@@ -152,11 +172,24 @@
       onboarding.hidden = true;
       dashboardArea.classList.remove("is-inactive");
       setStatus("", "En attente d'un /reload en jeu...");
+      // Joueur existant qui vient de mettre l'app a jour : notes une fois.
+      if (readSeen() !== WN_VERSION) { markSeen(); openWhatsNew(); }
     } else {
       onboarding.hidden = false;
       dashboardArea.classList.add("is-inactive");
       setStatus("warn", "Aucun compte suivi pour le moment.");
+      // Premiere installation : on ne recouvre pas l'accueil, les notes
+      // restent accessibles par le bouton « Quoi de neuf ».
+      markSeen();
     }
+  }
+
+  document.getElementById("btn-whatsnew").addEventListener("click", openWhatsNew);
+  document.getElementById("wn-close").addEventListener("click", closeWhatsNew);
+  document.getElementById("wn-ok").addEventListener("click", closeWhatsNew);
+  if (wnDialog) {
+    // Clic sur le fond (hors de la boite) : ferme.
+    wnDialog.addEventListener("click", function (e) { if (e.target === wnDialog) closeWhatsNew(); });
   }
 
   btnScanDefault.addEventListener("click", scanDefault);

@@ -12,6 +12,7 @@
     <div class="app-topbar">
       <span class="app-brand">Tibi <b>Companion</b></span>
       <button id="btn-add-account" class="btn ghost small" type="button">+ Compte WoW</button>
+      <button id="btn-whatsnew" class="btn ghost small" type="button">Quoi de neuf</button>
       <label class="app-status" style="margin-left:0;cursor:pointer;">
         <input type="checkbox" id="chk-autostart" />
         Démarrer avec Windows/macOS
@@ -53,6 +54,52 @@
       </div>
     </main>
   </div>
+
+  <!-- Quoi de neuf : ouvert une fois par version (app.js, WN_VERSION) et via
+       le bouton de la barre du haut. Contenu statique, a mettre a jour a
+       chaque release de l'app ou de TibiSuite. -->
+  <dialog id="whatsnew" class="wn-dialog" aria-labelledby="wn-title">
+    <header class="wn-head">
+      <div>
+        <h2 id="wn-title">Quoi de neuf</h2>
+        <p class="wn-sub">Tibi Companion 2.0.22 · TibiSuite 7.1.5.38 · semaine du 27 septembre au 3 octobre</p>
+      </div>
+      <button id="wn-close" class="wn-x" type="button" aria-label="Fermer">×</button>
+    </header>
+
+    <div class="wn-body">
+      <h3>Dans Tibi Companion</h3>
+      <ul class="wn-list">
+        <li style="--c:#C41F3B"><b>Trois nouvelles cartes</b> : Légendaires (LegTracker), Leveling (LvlHistory) et Repaires (LairLens).</li>
+        <li style="--c:#C41F3B"><b>Cartes repliables</b> : Cette semaine, Personnages et Fiche restent lisibles même avec beaucoup d'alts.</li>
+        <li style="--c:#C41F3B"><b>Cette fenêtre</b> : à chaque mise à jour, l'essentiel de l'app et de TibiSuite en un coup d'œil.</li>
+      </ul>
+
+      <h3>Dans TibiSuite, cette semaine (7.1.5.26 à 7.1.5.38)</h3>
+      <ul class="wn-list wn-mods">
+        <li style="--c:#C41F3B"><b>TibiSuite</b> installateur en 6 étapes, modules décochés réellement désactivés, /ts doctor, /ts perf et profils de suite.</li>
+        <li style="--c:#B87838"><b>PostBox</b> mule automatique, boîte aux lettres de tous tes persos, journal HV, contre-remboursements protégés.</li>
+        <li style="--c:#FCD748"><b>MiniHub</b> gestionnaire de boutons, barre rapide, vue liste, mode tiroir, pause avec EllesmereUI, ElvUI ou Tukui.</li>
+        <li style="--c:#7FD4E8"><b>Opacity</b> réglage à la molette, profils par perso et spécialisation, groupes liés, six nouveaux contextes.</li>
+        <li style="--c:#FFFFFF"><b>LairLens</b> détection réparée en français, fiche du Repaire, butin de ta spécialisation, hauts faits et records.</li>
+        <li style="--c:#0267FC"><b>DgnTracker</b> plus de 200 instances placées au bon endroit, vues Saison, Près de moi et Favoris.</li>
+        <li style="--c:#5EE223"><b>LvlHistory</b> clés M+ réparées, onglet Niveaux, origine de l'XP, XP reposée de chaque alt.</li>
+        <li style="--c:#00FF98"><b>SkillTracker</b> concentration projetée, connaissances de la semaine, « Qui sait crafter ça ? ».</li>
+        <li style="--c:#16C4FC"><b>DailyTracker</b> quêtes 12.1 vérifiées en jeu, suivi par personnage, liste « À faire ».</li>
+        <li style="--c:#5CADF5"><b>RepBar</b> réputation par heure, coffres de Parangon, 3 factions épinglées, historique.</li>
+        <li style="--c:#FF6D0B"><b>LegTracker</b> détection sur tout le compte, collection, farm de la semaine, alertes au butin.</li>
+        <li style="--c:#BC38FA"><b>XPBar</b> XP réelle des quêtes, historique par niveau, styles prêts à l'emploi.</li>
+        <li style="--c:#DDA669"><b>RenTracker</b> Île annelée, coffres de Paragon, itinéraire, checklist et temps restant.</li>
+        <li style="--c:#0AFFBE"><b>WeeklyCompass</b> métiers et Repaires dans la fiche personnage, raids reliés à DgnTracker.</li>
+        <li style="--c:#FFD700"><b>Stats</b> clés Mythique+ de nouveau enregistrées, export enrichi pour les nouvelles cartes.</li>
+      </ul>
+      <p class="wn-note">Les nouvelles cartes ont besoin de TibiSuite 7.1.5.37 ou plus : mets tes addons à jour sur CurseForge, puis fais un /reload en jeu.</p>
+    </div>
+
+    <footer class="wn-foot">
+      <button id="wn-ok" class="btn primary small" type="button">Compris</button>
+    </footer>
+  </dialog>
 
   <script src="vendor/dashboard-shared.js"></script>
   <script src="app.js"></script>

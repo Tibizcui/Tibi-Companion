@@ -145,3 +145,74 @@ body { overflow-y: auto; }
 
 .manual-paste { display: none; margin-bottom: 24px; }
 .manual-paste.open { display: block; }
+
+/* Quoi de neuf (dialog natif, couche superieure : pas de display:none a
+   basculer sur un conteneur deja peuple, cf. .is-inactive plus haut). */
+.wn-dialog {
+  width: min(720px, calc(100vw - 48px));
+  max-height: calc(100vh - 64px);
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--graphite-2);
+  color: var(--text);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+.wn-dialog[open] { display: flex; flex-direction: column; }
+.wn-dialog::backdrop { background: rgba(5, 6, 8, 0.72); }
+.wn-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 16px;
+  border-top: 2px solid var(--accent);
+  border-bottom: 1px solid var(--line);
+}
+.wn-head h2 { margin: 0; font-size: 1.35rem; }
+.wn-sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+.wn-x {
+  background: none; border: none; color: var(--muted);
+  font-size: 24px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.wn-x:hover { color: var(--text); }
+.wn-body { padding: 8px 24px 4px; overflow-y: auto; }
+.wn-body h3 {
+  margin: 16px 0 10px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted-cool, var(--muted));
+}
+.wn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.wn-list li {
+  position: relative;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.wn-list li::before {
+  content: "";
+  position: absolute; left: 2px; top: 0.6em;
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--c, var(--accent));
+  box-shadow: 0 0 8px var(--c, var(--accent));
+}
+.wn-list b { color: var(--text); font-weight: 650; }
+.wn-mods b { color: var(--c); margin-right: 4px; }
+.wn-note {
+  margin: 18px 0 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 13px;
+  color: var(--text);
+}
+.wn-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--line);
+}
