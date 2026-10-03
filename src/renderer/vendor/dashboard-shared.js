@@ -1158,6 +1158,92 @@
   }
 
   // ---------------------------------------------------------------------
+  // Carte Repaires (LairLens 7.1.5.37). Source : chars[k].lairs du code
+  // d'export (Stats/Export.lua collectLairs, recopie de LairLensDB.summary)
+  // = {at, lair, runs, kills, loot, last, resetAt, week{w,n,h,m} (1 = fait),
+  // best{w,n,h,m} (secondes), diffs{w|n|h|m:{r,k,f}}}. La semaine n'est
+  // valable que jusqu'a resetAt (sinon elle est consideree a refaire).
+  // Absent = LairLens ou Stats trop anciens, la carte l'explique.
+  // ---------------------------------------------------------------------
+  var LAIR_ACCENT = "#f2f2f2";   // blanc pretre de LairLens
+  var LAIR_DIFFS = [
+    { key: "w", label: "Monde", color: "#4cd964", ilvl: 279 },
+    { key: "n", label: "Normal", color: "#59a6ff", ilvl: 292 },
+    { key: "h", label: "Heroique", color: "#b366ff", ilvl: 305 },
+    { key: "m", label: "Mythique", color: "#ff8000", ilvl: 318 },
+  ];
+  var LAIR_CTA = '<p class="dash-empty">Aucune donnee de Repaire dans ce code. Elles viennent de <strong>LairLens</strong> ' +
+    "(7.1.5.37 ou plus) et sont exportees par <strong>Stats</strong> : fais un /reload avec les deux actifs, puis regenere ton code.</p>";
+
+  function lairWrap(body, note) {
+    return '<div class="bi-chart-card lair-card" style="border-top-color:' + LAIR_ACCENT + '">' +
+      sectionHead("Repaires", "lair", LAIR_ACCENT, true) + body +
+      (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+  function lairWeekValid(lr, now) {
+    return lr && lr.week && (!lr.resetAt || lr.resetAt * 1000 > now);
+  }
+  function lairWeekPills(lr, now) {
+    var valid = lairWeekValid(lr, now);
+    return LAIR_DIFFS.map(function (d) {
+      var done = valid && lr.week[d.key];
+      return '<span class="leg-pill ' + (done ? "leg-ok" : "") + '" style="border-color:' + d.color + (done ? "" : ";opacity:.55") +
+        '" title="' + d.label + " (ilvl " + d.ilvl + ") : " + (done ? "fait cette semaine" : "a faire") + '">' +
+        d.label + (done ? " &#10003;" : "") + "</span>";
+    }).join(" ");
+  }
+  function renderLairDetail(active) {
+    var lr = active && active.lairs;
+    if (!lr) return lairWrap(LAIR_CTA);
+    var now = Date.now();
+    var chips = [];
+    if (lr.lair) chips.push("<span><strong>" + esc(lr.lair) + "</strong></span>");
+    chips.push("<span><strong>" + fmtNum(lr.runs || 0) + "</strong> runs, <strong>" + fmtNum(lr.kills || 0) + "</strong> kills</span>");
+    if (lr.loot) chips.push("<span><strong>" + fmtNum(lr.loot) + "</strong> objets recus</span>");
+    var head = '<div class="rep-summary">' + chips.join("") + "</div>" +
+      '<h4 class="lvl-h">Cette semaine</h4><div class="rep-summary">' + lairWeekPills(lr, now) + "</div>";
+    var rows = LAIR_DIFFS.map(function (d) {
+      var x = (lr.diffs && lr.diffs[d.key]) || null;
+      var best = lr.best && lr.best[d.key];
+      if (!x && !best) return "";
+      return '<tr><td style="color:' + d.color + ';font-weight:700">' + d.label + "</td><td>" + fmtNum((x && x.r) || 0) +
+        "</td><td>" + fmtNum((x && x.k) || 0) + "</td><td>" + (best ? fmtDuration(best) : "-") +
+        "</td><td>" + (x && x.f != null ? fmtNum(x.f) : "-") + "</td></tr>";
+    }).join("");
+    var table = rows ? '<h4 class="lvl-h">Records par difficulte</h4><div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table">' +
+      "<thead><tr><th>Difficulte</th><th>Runs</th><th>Kills</th><th>Meilleur kill</th><th>Wipes avant le 1er kill</th></tr></thead><tbody>" +
+      rows + "</tbody></table></div>" : '<p class="dash-empty">Aucun run enregistre par LairLens sur ce personnage.</p>';
+    return lairWrap(head + table, "Chaque kill compte comme activite de raid dans la Grande Chambre forte. Butin : Monde 279, Normal 292, Heroique 305, Mythique 318.");
+  }
+  function renderLairGrid(profiles) {
+    var list = (profiles || []).filter(function (p) { return p.lairs && p.id !== ALL_PROFILES_ID; });
+    if (!list.length) return lairWrap(LAIR_CTA);
+    var now = Date.now();
+    list.sort(function (a, b) { return (b.lairs.kills || 0) - (a.lairs.kills || 0) || String(a.id).localeCompare(String(b.id)); });
+    var totalKills = 0, todo = 0;
+    var rows = list.map(function (p) {
+      var lr = p.lairs, c = p.char || {};
+      totalKills += lr.kills || 0;
+      var valid = lairWeekValid(lr, now);
+      var doneN = 0;
+      LAIR_DIFFS.forEach(function (d) { if (valid && lr.week[d.key]) doneN++; });
+      if (doneN === 0) todo++;
+      var bestAll = null;
+      LAIR_DIFFS.forEach(function (d) { var b = lr.best && lr.best[d.key]; if (b && (!bestAll || b < bestAll)) bestAll = b; });
+      var name = '<span style="color:' + classColor(c.class) + ';font-weight:700">' + esc(c.name || p.id) + "</span>";
+      return "<tr><td>" + name + "</td><td>" + lairWeekPills(lr, now) + "</td><td>" + fmtNum(lr.runs || 0) + "</td><td>" + fmtNum(lr.kills || 0) +
+        "</td><td>" + (bestAll ? fmtDuration(bestAll) : "-") + "</td><td>" + fmtNum(lr.loot || 0) + "</td></tr>";
+    }).join("");
+    var head = '<div class="rep-summary"><span><strong>' + list.length + "</strong> personnages suivis</span>" +
+      "<span><strong>" + fmtNum(totalKills) + "</strong> kills au total</span>" +
+      (todo ? "<span><strong>" + todo + "</strong> sans Repaire cette semaine</span>" : "") + "</div>";
+    var table = '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
+      "<th>Personnage</th><th>Cette semaine</th><th>Runs</th><th>Kills</th><th>Meilleur kill</th><th>Objets</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+    return lairWrap(head + table, "Semaine lue au dernier export de chaque personnage (verrouillages par personnage).");
+  }
+
+  // ---------------------------------------------------------------------
   // Carte Legendaires (LegTracker 7.1.5.31). Source : data.legendaries du
   // code d'export (Stats/Export.lua collectLegendaries, recopie de
   // LegTrackerDB.dashboard) = {at, by, exts:[{key, label, items:[{id, name,
@@ -2659,6 +2745,8 @@
         : renderLegendaryCard(state.profiles, active.id, state.legView);
       html += !state.sectionOpen.lvl ? sectionStub("Leveling", "lvl", LVL_ACCENT)
         : isAccount ? renderLevelingGrid(state.profiles) : renderLevelingDetail(active);
+      html += !state.sectionOpen.lair ? sectionStub("Repaires", "lair", LAIR_ACCENT)
+        : isAccount ? renderLairGrid(state.profiles) : renderLairDetail(active);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -3166,6 +3254,8 @@
           legendaries: data.legendaries || null,
           // LvlHistory 7.1.5.35 : chronologie des niveaux, sessions, repos (par perso)
           leveling: entry.leveling || null,
+          // LairLens 7.1.5.37 : Repaires (semaine, records, butin) par perso
+          lairs: entry.lairs || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -3320,6 +3410,7 @@
         warband: a.warband || b.warband || null,
         legendaries: a.legendaries || b.legendaries || null,
         leveling: a.leveling || b.leveling || null,
+        lairs: a.lairs || b.lairs || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };
