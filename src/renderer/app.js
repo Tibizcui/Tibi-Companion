@@ -23,7 +23,7 @@
   // Quoi de neuf : version des notes affichees dans #whatsnew (index.html).
   // A changer a chaque release dont les notes sont mises a jour : la fenetre
   // s'ouvre alors une seule fois au demarrage suivant.
-  const WN_VERSION = "2.0.22";
+  const WN_VERSION = "2.0.23";
   const WN_KEY = "tibi_companion_whatsnew_seen";
   const wnDialog = document.getElementById("whatsnew");
 

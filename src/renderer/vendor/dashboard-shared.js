@@ -1244,6 +1244,70 @@
   }
 
   // ---------------------------------------------------------------------
+  // Carte Absences (Standby 7.1.5.40, export par Stats 7.1.5.41). Source :
+  // chars[k].afk du code d'export (Stats/Export.lua collectAfk, recopie de
+  // StandbyDB.chars) = {n (absences), t (s), best (s), last{at, dur, msgs}}.
+  // Seules les absences ou l'ecran Standby s'est affiche sont comptees.
+  // Absent = Standby ou Stats trop anciens (ou jamais absent), la carte
+  // l'explique.
+  // ---------------------------------------------------------------------
+  var AFK_ACCENT = "#F2789F";   // rose aube de Standby
+  var AFK_CTA = '<p class="dash-empty">Aucune absence dans ce code. Elles viennent de <strong>Standby</strong> ' +
+    "(7.1.5.40 ou plus) et sont exportees par <strong>Stats</strong> (7.1.5.41 ou plus) : passe Absent une fois avec les deux actifs, fais un /reload, puis regenere ton code.</p>";
+
+  function afkWrap(body, note) {
+    return '<div class="bi-chart-card afk-card" style="border-top-color:' + AFK_ACCENT + '">' +
+      sectionHead("Absences", "afk", AFK_ACCENT, true) + body +
+      (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+  function afkDate(at) {
+    if (!at) return "-";
+    var d = new Date(at * 1000);
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + " " +
+      d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+  function afkLast(a) {
+    if (!a.last || !a.last.at) return "-";
+    return afkDate(a.last.at) + " (" + fmtDuration(a.last.dur) + (a.last.msgs ? ", " + fmtNum(a.last.msgs) + " msg" : "") + ")";
+  }
+  function renderAfkDetail(active) {
+    var a = active && active.afk;
+    if (!a || !a.n) return afkWrap(AFK_CTA);
+    var avg = a.n ? Math.round((a.t || 0) / a.n) : 0;
+    var chips = [
+      "<span><strong>" + fmtNum(a.n) + "</strong> absences</span>",
+      "<span><strong>" + fmtDuration(a.t) + "</strong> au total</span>",
+      "<span>moyenne <strong>" + fmtDuration(avg) + "</strong></span>",
+      "<span>record <strong>" + fmtDuration(a.best) + "</strong></span>",
+    ];
+    var last = a.last && a.last.at ? '<h4 class="lvl-h">Derniere absence</h4><div class="rep-summary"><span><strong>' + afkDate(a.last.at) +
+      "</strong></span><span>duree <strong>" + fmtDuration(a.last.dur) + "</strong></span><span><strong>" + fmtNum(a.last.msgs || 0) +
+      "</strong> message(s) recu(s)</span></div>" : "";
+    return afkWrap('<div class="rep-summary">' + chips.join("") + "</div>" + last,
+      "Temps compte depuis le passage en Absent, pour les absences ou l'ecran de Standby s'est affiche.");
+  }
+  function renderAfkGrid(profiles) {
+    var list = (profiles || []).filter(function (p) { return p.afk && p.afk.n && p.id !== ALL_PROFILES_ID; });
+    if (!list.length) return afkWrap(AFK_CTA);
+    list.sort(function (a, b) { return (b.afk.t || 0) - (a.afk.t || 0) || String(a.id).localeCompare(String(b.id)); });
+    var total = 0, count = 0;
+    var rows = list.map(function (p) {
+      var a = p.afk, c = p.char || {};
+      total += a.t || 0; count += a.n || 0;
+      var name = '<span style="color:' + classColor(c.class) + ';font-weight:700">' + esc(c.name || p.id) + "</span>";
+      return "<tr><td>" + name + "</td><td>" + fmtNum(a.n) + "</td><td>" + fmtDuration(a.t) + "</td><td>" +
+        fmtDuration(a.n ? Math.round((a.t || 0) / a.n) : 0) + "</td><td>" + fmtDuration(a.best) + "</td><td>" + afkLast(a) + "</td></tr>";
+    }).join("");
+    var head = '<div class="rep-summary"><span><strong>' + list.length + "</strong> personnages</span>" +
+      "<span><strong>" + fmtNum(count) + "</strong> absences</span>" +
+      "<span><strong>" + fmtDuration(total) + "</strong> au total</span></div>";
+    var table = '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
+      "<th>Personnage</th><th>Absences</th><th>Temps total</th><th>Moyenne</th><th>Record</th><th>Derniere absence</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+    return afkWrap(head + table, "Cumul tenu par Standby sur chaque personnage, lu au dernier export.");
+  }
+
+  // ---------------------------------------------------------------------
   // Carte Legendaires (LegTracker 7.1.5.31). Source : data.legendaries du
   // code d'export (Stats/Export.lua collectLegendaries, recopie de
   // LegTrackerDB.dashboard) = {at, by, exts:[{key, label, items:[{id, name,
@@ -2747,6 +2811,8 @@
         : isAccount ? renderLevelingGrid(state.profiles) : renderLevelingDetail(active);
       html += !state.sectionOpen.lair ? sectionStub("Repaires", "lair", LAIR_ACCENT)
         : isAccount ? renderLairGrid(state.profiles) : renderLairDetail(active);
+      html += !state.sectionOpen.afk ? sectionStub("Absences", "afk", AFK_ACCENT)
+        : isAccount ? renderAfkGrid(state.profiles) : renderAfkDetail(active);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -3256,6 +3322,8 @@
           leveling: entry.leveling || null,
           // LairLens 7.1.5.37 : Repaires (semaine, records, butin) par perso
           lairs: entry.lairs || null,
+          // Standby 7.1.5.40 (export Stats 7.1.5.41) : cumul des absences par perso
+          afk: entry.afk || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -3411,6 +3479,7 @@
         legendaries: a.legendaries || b.legendaries || null,
         leveling: a.leveling || b.leveling || null,
         lairs: a.lairs || b.lairs || null,
+        afk: a.afk || b.afk || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };
