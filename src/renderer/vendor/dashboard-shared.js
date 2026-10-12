@@ -1307,6 +1307,167 @@
     return afkWrap(head + table, "Cumul tenu par Standby sur chaque personnage, lu au dernier export.");
   }
 
+
+  // ---------------------------------------------------------------------
+  // Cartes Ma semaine et Fil d'activite (core TibiSuite 7.1.5.44, lot 7,
+  // export par Stats). Sources : chars[k].week = {at, l:[{k, x, p, u, g}],
+  // nx:{k, x, u}} (photo des lignes d'etat des modules, par personnage) et
+  // data.suite = {v, at, mods:{k:{n, c}}, reset:{d, w}, feed:[{t, k, x, u, c}]}
+  // (commun au compte). g = 1 A faire, 2 Progression. Textes deja dans la
+  // langue du client WoW. Absent = core TibiSuite ou Stats trop anciens.
+  // ---------------------------------------------------------------------
+  var MYWEEK_ACCENT = "#C41F3B";   // rouge de marque TibiSuite
+  var MYWEEK_CTA = '<p class="dash-empty">Aucune donnee « Ma semaine » dans ce code. Elle vient du <strong>core TibiSuite</strong> ' +
+    "(7.1.5.44 ou plus) et est exportee par <strong>Stats</strong> : connecte chaque personnage une fois avec les deux actifs, fais un /reload, puis regenere ton code.</p>";
+  var MYWEEK_GROUPS = { 1: "A faire", 2: "Progression" };
+
+  function latestSuite(profiles) {
+    var best = null;
+    (profiles || []).forEach(function (p) {
+      var s = p.suite;
+      if (s && typeof s === "object" && (!best || (s.at || 0) > (best.at || 0))) best = s;
+    });
+    return best;
+  }
+  function suiteMod(suite, k) {
+    var m = suite && suite.mods && suite.mods[k];
+    if (m) return { n: m.n || k, c: "#" + (m.c || "9E9E9E") };
+    if (k === "Suite") return { n: "TibiSuite", c: MYWEEK_ACCENT };
+    return { n: k || "?", c: "#9E9E9E" };
+  }
+  function myWeekWrap(body, note) {
+    return '<div class="bi-chart-card myweek-card" style="border-top-color:' + MYWEEK_ACCENT + '">' +
+      sectionHead("Ma semaine", "myweek", MYWEEK_ACCENT, true) + body +
+      (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+  function feedWrap(body, note) {
+    return '<div class="bi-chart-card feed-card" style="border-top-color:' + MYWEEK_ACCENT + '">' +
+      sectionHead("Fil d'activite", "feed", MYWEEK_ACCENT, true) + body +
+      (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+  }
+  // Compte a rebours vers une date absolue (secondes epoch), au moment de l'affichage.
+  function resetIn(at) {
+    if (!at) return "-";
+    var s = at - Math.floor(Date.now() / 1000);
+    if (s <= 0) return "passe";
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+    if (d > 0) return d + " j " + h + " h";
+    if (h > 0) return h + " h " + String(m).padStart(2, "0");
+    return m + " min";
+  }
+  function snapAge(at) {
+    if (!at) return "-";
+    var d = new Date(at * 1000);
+    return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }) + " " +
+      d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+  }
+  function weekRow(suite, e) {
+    var m = suiteMod(suite, e.k);
+    var pct = typeof e.p === "number" ? Math.max(0, Math.min(1, e.p)) : null;
+    var bar = pct == null ? "" :
+      '<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden">' +
+      '<div style="height:100%;width:' + Math.round(pct * 100) + "%;background:" + (pct >= 1 ? "#4FD16B" : m.c) + '"></div></div>';
+    return '<div style="border-left:3px solid ' + m.c + ';padding:8px 10px;background:rgba(255,255,255,.03);border-radius:4px' +
+      (e.u ? ";box-shadow:inset 0 2px 0 #FF9A3C" : "") + '">' +
+      '<div style="display:flex;justify-content:space-between;gap:8px"><strong style="color:' + m.c + '">' + esc(m.n) + "</strong>" +
+      (e.u ? '<strong style="color:#FF9A3C">!</strong>' : "") + "</div>" +
+      '<div style="color:var(--text);font-size:.85rem;margin-top:2px">' + esc(e.x || "") + "</div>" + bar + "</div>";
+  }
+  function nextBanner(suite, nx) {
+    if (!nx || !nx.k) {
+      return '<div class="rep-summary"><span><strong style="color:#4FD16B">Tout est a jour</strong> au moment de la photo</span></div>';
+    }
+    var m = suiteMod(suite, nx.k);
+    return '<div style="border-left:3px solid ' + m.c + ';padding:10px 12px;margin:0 0 12px;background:rgba(255,255,255,.04);border-radius:4px">' +
+      '<div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;color:var(--muted)">PROCHAINE ACTION</div>' +
+      '<div style="margin-top:2px"><strong style="color:' + m.c + '">' + esc(m.n) + "</strong>&nbsp; " +
+      (nx.u ? '<strong style="color:#FF9A3C">! </strong>' : "") + esc(nx.x || "") + "</div></div>";
+  }
+  function resetChips(suite) {
+    if (!suite || !suite.reset) return "";
+    return '<div class="rep-summary"><span>reset quotidien dans <strong>' + resetIn(suite.reset.d) + "</strong></span>" +
+      "<span>reset hebdo dans <strong>" + resetIn(suite.reset.w) + "</strong></span></div>";
+  }
+  // Objectifs personnels (core 7.1.5.45) : data.suite.goals = [{x, v, p, d, w, k}].
+  function goalsBlock(suite) {
+    var list = suite && Array.isArray(suite.goals) ? suite.goals : [];
+    if (!list.length) return "";
+    var done = list.filter(function (g) { return g.d; }).length;
+    return '<h4 class="lvl-h">Mes objectifs <span style="color:var(--muted);font-weight:600">' + done + " / " + list.length + "</span></h4>" +
+      '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">' +
+      list.map(function (g) {
+        var pct = typeof g.p === "number" ? Math.max(0, Math.min(1, g.p)) : 0;
+        var c = g.d ? "#4FD16B" : MYWEEK_ACCENT;
+        return '<div style="border-left:3px solid ' + c + ';padding:8px 10px;background:rgba(255,255,255,.03);border-radius:4px">' +
+          '<div style="display:flex;justify-content:space-between;gap:8px"><strong style="color:var(--text)">' + esc(g.x || "") + "</strong>" +
+          (g.d ? '<strong style="color:#4FD16B">Fait</strong>' : "") + "</div>" +
+          '<div style="color:var(--muted);font-size:.8rem;margin-top:2px">' + esc(g.v || "") + (g.w ? " · chaque semaine" : "") + "</div>" +
+          '<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:6px;overflow:hidden">' +
+          '<div style="height:100%;width:' + Math.round(pct * 100) + "%;background:" + c + '"></div></div></div>';
+      }).join("") + "</div>";
+  }
+  function renderMyWeekDetail(active, profiles) {
+    var w = active && active.week;
+    if (!w || !Array.isArray(w.l)) return myWeekWrap(MYWEEK_CTA);
+    var suite = latestSuite(profiles);
+    var urgent = w.l.filter(function (e) { return e.u; }).length;
+    var html = resetChips(suite) + nextBanner(suite, w.nx) + goalsBlock(suite);
+    [1, 2].forEach(function (g) {
+      var list = w.l.filter(function (e) { return (e.g || 2) === g; });
+      if (!list.length) return;
+      list.sort(function (a, b) { return (b.u ? 1 : 0) - (a.u ? 1 : 0); });
+      html += '<h4 class="lvl-h">' + MYWEEK_GROUPS[g] + "</h4>" +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px">' +
+        list.map(function (e) { return weekRow(suite, e); }).join("") + "</div>";
+    });
+    return myWeekWrap(html, "Photo du " + snapAge(w.at) + (urgent ? " : " + urgent + " point(s) urgent(s)." : ".") +
+      " Les comptes a rebours sont calcules maintenant, a partir du dernier export.");
+  }
+  function renderMyWeekGrid(profiles) {
+    var list = (profiles || []).filter(function (p) { return p.week && Array.isArray(p.week.l) && p.id !== ALL_PROFILES_ID; });
+    if (!list.length) return myWeekWrap(MYWEEK_CTA);
+    var suite = latestSuite(profiles);
+    list.sort(function (a, b) {
+      var ua = a.week.l.filter(function (e) { return e.u; }).length, ub = b.week.l.filter(function (e) { return e.u; }).length;
+      return ub - ua || String(a.id).localeCompare(String(b.id));
+    });
+    var rows = list.map(function (p) {
+      var w = p.week, c = p.char || {};
+      var urgent = w.l.filter(function (e) { return e.u; }).length;
+      var todo = w.l.filter(function (e) { return (e.g || 2) === 1 && (e.u || (typeof e.p === "number" && e.p < 1)); }).length;
+      var nx = w.nx && w.nx.k ? '<span style="color:' + suiteMod(suite, w.nx.k).c + ';font-weight:700">' + esc(suiteMod(suite, w.nx.k).n) + "</span> " + esc(w.nx.x || "")
+        : '<span style="color:#4FD16B">Tout est a jour</span>';
+      var name = '<span style="color:' + classColor(c.class) + ';font-weight:700">' + esc(c.name || p.id) + "</span>";
+      return "<tr><td>" + name + "</td><td>" + nx + "</td><td>" + (urgent ? '<strong style="color:#FF9A3C">' + urgent + "</strong>" : "0") +
+        "</td><td>" + todo + "</td><td>" + snapAge(w.at) + "</td></tr>";
+    }).join("");
+    var table = '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
+      "<th>Personnage</th><th>Prochaine action</th><th>Urgent</th><th>A faire</th><th>Photo</th>" +
+      "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+    return myWeekWrap(resetChips(suite) + goalsBlock(suite) + table, "Une photo par personnage, prise a sa derniere connexion avec TibiSuite et Stats.");
+  }
+  function renderFeedCard(profiles) {
+    var suite = latestSuite(profiles);
+    var feed = suite && Array.isArray(suite.feed) ? suite.feed.slice().reverse() : [];
+    if (!feed.length) {
+      return feedWrap('<p class="dash-empty">Aucun evenement dans ce code. Le fil d\'activite vient du <strong>core TibiSuite</strong> ' +
+        "(7.1.5.44 ou plus), exporte par <strong>Stats</strong>.</p>");
+    }
+    var html = "", lastDay = null;
+    feed.forEach(function (e) {
+      var d = new Date((e.t || 0) * 1000);
+      var day = d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+      if (day !== lastDay) { html += '<h4 class="lvl-h">' + esc(day) + "</h4>"; lastDay = day; }
+      var m = suiteMod(suite, e.k);
+      html += '<div style="display:flex;gap:10px;align-items:baseline;border-left:2px solid ' + m.c + ';padding:5px 10px;margin:0 0 4px">' +
+        '<span style="color:var(--muted);font-size:.78rem;min-width:40px">' + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) + "</span>" +
+        '<span style="color:' + m.c + ';font-weight:700;font-size:.82rem;min-width:110px">' + esc(m.n) + "</span>" +
+        '<span style="flex:1;color:' + (e.u ? "var(--text)" : "var(--muted)") + ';font-size:.85rem">' + (e.u ? '<strong style="color:#FF9A3C">! </strong>' : "") + esc(e.x || "") + "</span>" +
+        (e.c ? '<span style="color:var(--muted);font-size:.75rem">' + esc(e.c) + "</span>" : "") + "</div>";
+    });
+    return feedWrap(html, feed.length + " derniers evenements de la suite (butin, paliers, courrier, semaine terminee, rappels), lus au dernier export.");
+  }
+
   // ---------------------------------------------------------------------
   // Carte Legendaires (LegTracker 7.1.5.31). Source : data.legendaries du
   // code d'export (Stats/Export.lua collectLegendaries, recopie de
@@ -2796,6 +2957,8 @@
           renderEventLogTable(active, state.eventMetric, win, state.eventSort, state.eventExpFilter) + "</div>";
       }
       var isAccount = active.id === ALL_PROFILES_ID;
+      html += !state.sectionOpen.myweek ? sectionStub("Ma semaine", "myweek", MYWEEK_ACCENT)
+        : isAccount ? renderMyWeekGrid(state.profiles) : renderMyWeekDetail(active, state.profiles);
       html += !state.sectionOpen.weekly ? sectionStub("Cette semaine", "weekly", WEEKLY_ACCENT)
         : isAccount ? renderWeeklyGrid(state.profiles) : renderWeeklyDetail(active);
       // Section publique (fixed) : l'or n'y est jamais affiche.
@@ -2813,6 +2976,8 @@
         : isAccount ? renderLairGrid(state.profiles) : renderLairDetail(active);
       html += !state.sectionOpen.afk ? sectionStub("Absences", "afk", AFK_ACCENT)
         : isAccount ? renderAfkGrid(state.profiles) : renderAfkDetail(active);
+      html += !state.sectionOpen.feed ? sectionStub("Fil d'activite", "feed", MYWEEK_ACCENT)
+        : renderFeedCard(state.profiles);
       html += renderSummaryTiles(active.char, state.summaryExpanded);
       // Detail rendu seulement si sa tuile est depliee (cf. tileHtml,
       // action "toggle-summary") - repond a la meme demande que l'addon :
@@ -3324,6 +3489,9 @@
           lairs: entry.lairs || null,
           // Standby 7.1.5.40 (export Stats 7.1.5.41) : cumul des absences par perso
           afk: entry.afk || null,
+          // Core TibiSuite 7.1.5.44 (lot 7) : Ma semaine par perso + fil du compte
+          week: entry.week || null,
+          suite: data.suite || null,
           generatedAt: envelope.generatedAt, checksumOk: checksumOk,
         };
       });
@@ -3480,6 +3648,8 @@
         leveling: a.leveling || b.leveling || null,
         lairs: a.lairs || b.lairs || null,
         afk: a.afk || b.afk || null,
+        week: a.week || b.week || null,
+        suite: a.suite || b.suite || null,
         generatedAt: Math.max(a.generatedAt || 0, b.generatedAt || 0),
         checksumOk: a.checksumOk, sources: ["addon", "api"],
       };
