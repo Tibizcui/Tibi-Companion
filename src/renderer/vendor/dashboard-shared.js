@@ -1469,6 +1469,222 @@
   }
 
   // ---------------------------------------------------------------------
+  // Cartes Patrimoine et Ma semaine passee (core TibiSuite 7.3, export par
+  // Stats dans data.suite). Sources :
+  //  - suite.worth = {v, at, total, gold, warband, items, chars:[{n, r, c, g, i}],
+  //    hist:[{d "AAAAMMJJ", g, i}]} (cuivre ; g = or + banque de Bataillon,
+  //    i = valeur des objets) ;
+  //  - suite.recap = [{w, s:{played, quests, worldQuests, dungeons, mplus, raids,
+  //    delves, gold, rep, prof, pvp, ach, sessions}, g:{d, t}, b, wo}], la plus
+  //    recente d'abord (w = reset qui clot la semaine, peut etre a venir).
+  // Blocs facultatifs : absents (addon plus ancien), la carte n'est pas
+  // affichee du tout. Section publique (fixed) : pas de Patrimoine, et ni or
+  // ni patrimoine dans le bilan (meme regle que la fiche).
+  // ---------------------------------------------------------------------
+  var WORTH_ACCENT = "#FFD100";   // or de Stats
+  var WORTH_ITEMS = "#4FC3F7";
+  var RECAP_ACCENT = MYWEEK_ACCENT;
+
+  function suiteWorth(profiles) {
+    var s = latestSuite(profiles);
+    var w = s && s.worth;
+    return w && typeof w === "object" && (w.total != null || Array.isArray(w.hist)) ? w : null;
+  }
+  function suiteRecap(profiles) {
+    var s = latestSuite(profiles);
+    var r = s && Array.isArray(s.recap) ? s.recap.filter(function (e) { return e && e.s && typeof e.s === "object"; }) : [];
+    return r.length ? r : null;
+  }
+  function hasWorthCard(profiles) { return !!suiteWorth(profiles); }
+  function hasRecapCard(profiles) { return !!suiteRecap(profiles); }
+
+  function ymdToDate(d) {
+    var s = String(d || "");
+    return new Date(Number(s.slice(0, 4)), Number(s.slice(4, 6)) - 1, Number(s.slice(6, 8)));
+  }
+  function shortDate(dt) { return dt.toLocaleDateString("fr-FR", { day: "numeric", month: "short" }); }
+
+  // Courbe empilee or (bas) + objets (haut) sur l'historique quotidien.
+  function worthChart(hist) {
+    var pts = hist.filter(function (h) { return h && h.d; }).slice()
+      .sort(function (a, b) { return String(a.d) < String(b.d) ? -1 : 1; });
+    if (pts.length < 2) return "";
+    var W = 600, H = 160, n = pts.length;
+    var max = 0;
+    pts.forEach(function (h) { max = Math.max(max, (h.g || 0) + (h.i || 0)); });
+    if (max <= 0) return "";
+    function x(k) { return (k / (n - 1)) * W; }
+    function y(v) { return H - (v / max) * (H - 6); }
+    var top = [], mid = [];
+    pts.forEach(function (h, k) {
+      mid.push(x(k).toFixed(1) + "," + y(h.g || 0).toFixed(1));
+      top.push(x(k).toFixed(1) + "," + y((h.g || 0) + (h.i || 0)).toFixed(1));
+    });
+    var goldArea = "M0," + H + " L" + mid.join(" L") + " L" + W + "," + H + " Z";
+    var itemArea = "M" + top.join(" L") + " L" + mid.slice().reverse().join(" L") + " Z";
+    var first = ymdToDate(pts[0].d), last = ymdToDate(pts[n - 1].d);
+    return '<div style="position:relative;margin:4px 0 2px">' +
+      '<div style="position:absolute;top:0;left:0;font-size:.72rem;color:var(--muted)">' + fmtGoldShort(max) + " po</div>" +
+      '<svg viewBox="0 0 ' + W + " " + H + '" preserveAspectRatio="none" style="width:100%;height:160px;display:block" role="img" aria-label="Patrimoine : or et objets sur ' + n + ' jours">' +
+      '<path d="' + itemArea + '" fill="' + WORTH_ITEMS + '" fill-opacity=".35"/>' +
+      '<polyline points="' + top.join(" ") + '" fill="none" stroke="' + WORTH_ITEMS + '" stroke-width="1.5" vector-effect="non-scaling-stroke"/>' +
+      '<path d="' + goldArea + '" fill="' + WORTH_ACCENT + '" fill-opacity=".35"/>' +
+      '<polyline points="' + mid.join(" ") + '" fill="none" stroke="' + WORTH_ACCENT + '" stroke-width="1.5" vector-effect="non-scaling-stroke"/>' +
+      "</svg>" +
+      '<div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);margin-top:2px"><span>' + shortDate(first) + "</span><span>" + shortDate(last) + "</span></div>" +
+      '<div style="display:flex;gap:14px;font-size:.78rem;color:var(--muted);margin-top:4px">' +
+      '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + WORTH_ACCENT + ';margin-right:5px"></span>Or et banque</span>' +
+      '<span><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + WORTH_ITEMS + ';margin-right:5px"></span>Objets</span></div></div>';
+  }
+  function worthTile(label, copper, color, sub) {
+    return '<div style="border-left:3px solid ' + color + ';padding:8px 10px;background:rgba(255,255,255,.03);border-radius:4px">' +
+      '<div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase">' + label + "</div>" +
+      '<div style="color:var(--text);font-size:1.15rem;font-weight:800;margin-top:2px">' + fmtGold(copper) + "</div>" +
+      (sub ? '<div style="color:var(--muted);font-size:.78rem;margin-top:2px">' + sub + "</div>" : "") + "</div>";
+  }
+  function renderWorthCard(profiles) {
+    var w = suiteWorth(profiles);
+    if (!w) return "";
+    var total = w.total != null ? w.total : (w.gold || 0) + (w.warband || 0) + (w.items || 0);
+    var hist = Array.isArray(w.hist) ? w.hist : [];
+    var sorted = hist.filter(function (h) { return h && h.d; }).slice().sort(function (a, b) { return String(a.d) < String(b.d) ? -1 : 1; });
+    var trend = "";
+    if (sorted.length >= 2) {
+      var a = sorted[0], b = sorted[sorted.length - 1];
+      var d = ((b.g || 0) + (b.i || 0)) - ((a.g || 0) + (a.i || 0));
+      trend = '<span style="color:' + (d >= 0 ? "#4FD16B" : "#FF6B6B") + '">' + (d >= 0 ? "+" : "") + fmtGold(d) + "</span> en " + sorted.length + " jours";
+    }
+    var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin:0 0 12px">' +
+      worthTile("Total", total, WORTH_ACCENT, trend) +
+      worthTile("Or des personnages", w.gold, WORTH_ACCENT) +
+      worthTile("Banque de Bataillon", w.warband, WORTH_ACCENT) +
+      worthTile("Objets", w.items, WORTH_ITEMS, "valeur estimee des sacs et banques") + "</div>";
+    html += worthChart(hist);
+    var chars = Array.isArray(w.chars) ? w.chars.slice() : [];
+    if (chars.length) {
+      chars.sort(function (x, y) { return ((y.g || 0) + (y.i || 0)) - ((x.g || 0) + (x.i || 0)); });
+      var top = (chars[0].g || 0) + (chars[0].i || 0) || 1;
+      var rows = chars.map(function (c) {
+        var t = (c.g || 0) + (c.i || 0);
+        var name = '<span style="color:' + classColor(c.c) + ';font-weight:700">' + esc(c.n || "?") + "</span>" +
+          (c.r ? ' <span style="color:var(--muted);font-size:.78rem">' + esc(c.r) + "</span>" : "");
+        var bar = '<div style="height:4px;border-radius:2px;background:rgba(255,255,255,.08);margin-top:4px;overflow:hidden;min-width:80px">' +
+          '<div style="height:100%;width:' + Math.round(Math.max(0, t) / top * 100) + "%;background:" + classColor(c.c) + '"></div></div>';
+        return "<tr><td>" + name + "</td><td>" + fmtGold(c.g) + "</td><td>" + fmtGold(c.i) + "</td><td><strong>" + fmtGold(t) + "</strong>" + bar + "</td></tr>";
+      }).join("");
+      html += '<h4 class="lvl-h">Mes personnages les plus riches</h4>' +
+        '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
+        "<th>Personnage</th><th>Or</th><th>Objets</th><th>Total</th></tr></thead><tbody>" + rows + "</tbody></table></div>";
+    }
+    return '<div class="bi-chart-card worth-card" style="border-top-color:' + WORTH_ACCENT + '">' +
+      sectionHead("Patrimoine", "worth", WORTH_ACCENT, true) + html +
+      '<p class="dash-note">Releve du ' + snapAge(w.at) + " par TibiSuite. L'or des personnages hors ligne est celui de leur derniere connexion ; " +
+      "la valeur des objets suit les prix d'Auctionator ou de TSM.</p></div>";
+  }
+
+  var RECAP_STATS = [
+    { k: "played", label: "Temps de jeu", fmt: fmtHours },
+    { k: "sessions", label: "Sessions" },
+    { k: "quests", label: "Quetes" },
+    { k: "worldQuests", label: "Expeditions" },
+    { k: "dungeons", label: "Donjons" },
+    { k: "mplus", label: "Cles mythiques" },
+    { k: "raids", label: "Boss de raid" },
+    { k: "delves", label: "Gouffres" },
+    { k: "pvp", label: "JcJ" },
+    { k: "rep", label: "Paliers de reputation" },
+    { k: "prof", label: "Points de metier" },
+    { k: "ach", label: "Hauts faits" },
+    { k: "gold", label: "Or net", fmt: fmtGold, gold: true }
+  ];
+  function recapDelta(cur, prev) {
+    if (prev == null) return "";
+    cur = cur || 0; prev = prev || 0;
+    if (cur === prev) return '<span style="color:var(--muted)">=</span>';
+    if (prev === 0) return '<span style="color:#4FD16B">nouveau</span>';
+    var pct = Math.round((cur - prev) / Math.abs(prev) * 100);
+    if (pct === 0) return '<span style="color:var(--muted)">=</span>';
+    return '<span style="color:' + (pct > 0 ? "#4FD16B" : "#FF6B6B") + '">' + (pct > 0 ? "+" : "") + pct + " %</span>";
+  }
+  function recapRange(w) {
+    var end = new Date((w || 0) * 1000), start = new Date(((w || 0) - 7 * 86400) * 1000);
+    return "du " + shortDate(start) + " au " + shortDate(end);
+  }
+  function renderRecapCard(profiles, fixed) {
+    var list = suiteRecap(profiles);
+    if (!list) return "";
+    var now = Math.floor(Date.now() / 1000);
+    var idx = -1;
+    for (var k = 0; k < list.length; k++) { if ((list[k].w || 0) <= now) { idx = k; break; } }
+    function wrap(body, note) {
+      return '<div class="bi-chart-card recap-card" style="border-top-color:' + RECAP_ACCENT + '">' +
+        sectionHead("Ma semaine passee", "recap", RECAP_ACCENT, true) + body +
+        (note ? '<p class="dash-note">' + note + "</p>" : "") + "</div>";
+    }
+    if (idx < 0) {
+      return wrap('<p class="dash-empty">Ta premiere semaine suivie par TibiSuite n\'est pas encore terminee : le bilan apparaitra apres le prochain reset hebdomadaire.</p>');
+    }
+    var cur = list[idx], prev = list[idx + 1] || null;
+    var s = cur.s, ps = prev ? prev.s : null;
+    var html = '<div class="rep-summary"><span>Semaine <strong>' + recapRange(cur.w) + "</strong></span>" +
+      (prev ? "<span>comparee a la semaine " + recapRange(prev.w) + "</span>" : "<span>premiere semaine suivie, pas encore de comparaison</span>") + "</div>";
+    if (cur.b) {
+      html += '<div style="border-left:3px solid ' + RECAP_ACCENT + ';padding:10px 12px;margin:0 0 12px;background:rgba(255,255,255,.04);border-radius:4px">' +
+        '<div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;color:var(--muted)">MEILLEUR MOMENT</div>' +
+        '<div style="margin-top:2px;color:var(--text)">' + esc(cur.b) + "</div></div>";
+    }
+    var tiles = RECAP_STATS.filter(function (m) {
+      if (m.gold && fixed) return false;
+      return (s[m.k] || 0) !== 0 || (ps && (ps[m.k] || 0) !== 0);
+    }).map(function (m) {
+      var v = s[m.k] || 0;
+      var shown = m.fmt ? m.fmt(v) : fmtNum(v);
+      var before = ps ? (m.fmt ? m.fmt(ps[m.k] || 0) : fmtNum(ps[m.k] || 0)) : null;
+      return '<div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:4px">' +
+        '<div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase">' + m.label + "</div>" +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px">' +
+        '<strong style="color:var(--text);font-size:1.05rem">' + shown + "</strong>" +
+        '<span style="font-size:.8rem;font-weight:700">' + (ps ? recapDelta(v, ps[m.k]) : "") + "</span></div>" +
+        (before != null ? '<div style="color:var(--muted);font-size:.75rem">avant : ' + before + "</div>" : "") + "</div>";
+    });
+    if (!fixed && cur.wo != null) {
+      tiles.push('<div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:4px">' +
+        '<div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;color:var(--muted);text-transform:uppercase">Patrimoine</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-top:2px">' +
+        '<strong style="color:var(--text);font-size:1.05rem">' + fmtGold(cur.wo) + "</strong>" +
+        '<span style="font-size:.8rem;font-weight:700">' + (prev && prev.wo != null ? recapDelta(cur.wo, prev.wo) : "") + "</span></div>" +
+        (prev && prev.wo != null ? '<div style="color:var(--muted);font-size:.75rem">avant : ' + fmtGold(prev.wo) + "</div>" : "") + "</div>");
+    }
+    html += tiles.length
+      ? '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px">' + tiles.join("") + "</div>"
+      : '<p class="dash-empty">Aucune activite relevee cette semaine-la.</p>';
+    if (cur.g && cur.g.t) {
+      var gd = cur.g.d || 0, gt = cur.g.t;
+      var gc = gd >= gt ? "#4FD16B" : RECAP_ACCENT;
+      html += '<h4 class="lvl-h">Mes objectifs <span style="color:var(--muted);font-weight:600">' + gd + " / " + gt + "</span></h4>" +
+        '<div style="height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;max-width:420px">' +
+        '<div style="height:100%;width:' + Math.round(Math.min(1, gd / gt) * 100) + "%;background:" + gc + '"></div></div>';
+    }
+    var older = list.slice(idx);
+    if (older.length > 1) {
+      var rows = older.map(function (e) {
+        var x = e.s || {};
+        return "<tr><td>" + recapRange(e.w) + "</td><td>" + fmtHours(x.played) + "</td><td>" + fmtNum(x.quests) + "</td><td>" +
+          fmtNum(x.dungeons) + " / " + fmtNum(x.mplus) + "</td><td>" + (e.g && e.g.t ? (e.g.d || 0) + " / " + e.g.t : "-") + "</td>" +
+          (fixed ? "" : '<td class="' + ((x.gold || 0) >= 0 ? "pos" : "neg") + '">' + fmtGold(x.gold) + "</td>") + "</tr>";
+      }).join("");
+      html += '<h4 class="lvl-h">Historique des semaines</h4>' +
+        '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
+        "<th>Semaine</th><th>Temps de jeu</th><th>Quetes</th><th>Donjons / M+</th><th>Objectifs</th>" + (fixed ? "" : "<th>Or net</th>") +
+        "</tr></thead><tbody>" + rows + "</tbody></table></div>";
+    }
+    var live = idx > 0 ? list[0] : null;
+    var note = "Bilan tenu par TibiSuite sur tout le compte, clos a chaque reset hebdomadaire." +
+      (live ? " Semaine en cours : " + fmtHours(live.s.played) + " de jeu et " + fmtNum(live.s.quests) + " quetes pour l'instant." : "");
+    return wrap(html, note);
+  }
+
+  // ---------------------------------------------------------------------
   // Carte Legendaires (LegTracker 7.1.5.31). Source : data.legendaries du
   // code d'export (Stats/Export.lua collectLegendaries, recopie de
   // LegTrackerDB.dashboard) = {at, by, exts:[{key, label, items:[{id, name,
@@ -2959,12 +3175,17 @@
       var isAccount = active.id === ALL_PROFILES_ID;
       html += !state.sectionOpen.myweek ? sectionStub("Ma semaine", "myweek", MYWEEK_ACCENT)
         : isAccount ? renderMyWeekGrid(state.profiles) : renderMyWeekDetail(active, state.profiles);
+      // Blocs facultatifs (core 7.3) : sans eux, pas de carte du tout.
+      if (hasRecapCard(state.profiles)) html += !state.sectionOpen.recap ? sectionStub("Ma semaine passee", "recap", RECAP_ACCENT)
+        : renderRecapCard(state.profiles, fixed);
       html += !state.sectionOpen.weekly ? sectionStub("Cette semaine", "weekly", WEEKLY_ACCENT)
         : isAccount ? renderWeeklyGrid(state.profiles) : renderWeeklyDetail(active);
       // Section publique (fixed) : l'or n'y est jamais affiche.
       var cpKey = isAccount ? "chars" : "sheet";
       html += !state.sectionOpen[cpKey] ? sectionStub(isAccount ? "Personnages" : "Fiche", cpKey, COMPASS_ACCENT)
         : isAccount ? renderCompassGrid(state.profiles, fixed, state.compassSort) : renderSheet(active, fixed);
+      if (!fixed && hasWorthCard(state.profiles)) html += !state.sectionOpen.worth ? sectionStub("Patrimoine", "worth", WORTH_ACCENT)
+        : renderWorthCard(state.profiles);
       html += !state.sectionOpen.reps ? sectionStub("Reputations", "reps", REP_ACCENT)
         : renderReputationCard(isAccount ? mergeAccountReputations(state.profiles)
             : (active.char && active.char.reputations && active.char.reputations.list), isAccount, state.repView);
