@@ -1029,7 +1029,8 @@
   // d'export (Stats/Export.lua collectLeveling, recopie de
   // LvlHistoryDB.dashboard) = {at, max, lvl, mode, play, seen, race, rest,
   // onLevel{l,t}, levels[{l,t,p}], sess[{d,dur,m,xph,gold,l0,l1,q,dg,dv}],
-  // xpSrc{q,d,g,o}, best{xph,goldh}, dgn, delves, quests{t,d,w}}.
+  // xpSrc{q,d,g,o}, best{xph,goldh}, dgn, delves, raids, raidBoss, dgnT, raidT
+  // (secondes en donjon / en raid), quests{t,d,w}} ; sess[].rd = raids de la session.
   // Absent = LvlHistory ou Stats trop anciens, la carte l'explique.
   // ---------------------------------------------------------------------
   var LVL_ACCENT = "#5ee223";   // vert du logo LvlHistory
@@ -1099,10 +1100,10 @@
         : (s.xph ? fmtXph(s.xph) + " XP/h" : "-");
       var lvls = (s.l0 && s.l1 && s.l1 > s.l0) ? s.l0 + " > " + s.l1 : (s.l1 || "-");
       return "<tr><td>" + when + "</td><td>" + fmtDuration(s.dur) + "</td><td>" + (s.m === "f" ? "Farming" : "Leveling") +
-        "</td><td>" + rate + "</td><td>" + lvls + "</td><td>" + (s.q || 0) + "</td><td>" + ((s.dg || 0) + (s.dv || 0)) + "</td></tr>";
+        "</td><td>" + rate + "</td><td>" + lvls + "</td><td>" + (s.q || 0) + "</td><td>" + ((s.dg || 0) + (s.rd || 0) + (s.dv || 0)) + "</td></tr>";
     }).join("");
     return '<h4 class="lvl-h">Dernieres sessions</h4><div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table">' +
-      "<thead><tr><th>Debut</th><th>Duree</th><th>Mode</th><th>Rythme</th><th>Niveaux</th><th>Quetes</th><th>Donjons + gouffres</th></tr></thead><tbody>" +
+      "<thead><tr><th>Debut</th><th>Duree</th><th>Mode</th><th>Rythme</th><th>Niveaux</th><th>Quetes</th><th>Donjons + raids + gouffres</th></tr></thead><tbody>" +
       rows + "</tbody></table></div>";
   }
 
@@ -1119,6 +1120,8 @@
     var q = lv.quests || {};
     if (q.t) chips.push("<span><strong>" + fmtNum(q.t) + "</strong> quetes" + (q.d ? " (" + fmtNum(q.d) + " journ.)" : "") + "</span>");
     if (lv.dgn || lv.delves) chips.push("<span><strong>" + fmtNum(lv.dgn) + "</strong> donjons, <strong>" + fmtNum(lv.delves) + "</strong> gouffres</span>");
+    if (lv.raids) chips.push("<span><strong>" + fmtNum(lv.raids) + "</strong> raids" + (lv.raidBoss ? " (<strong>" + fmtNum(lv.raidBoss) + "</strong> boss)" : "") + "</span>");
+    if (lv.dgnT || lv.raidT) chips.push("<span>En instance : " + (lv.dgnT ? "donjons <strong>" + fmtHours(lv.dgnT) + "</strong>" : "") + (lv.dgnT && lv.raidT ? ", " : "") + (lv.raidT ? "raids <strong>" + fmtHours(lv.raidT) + "</strong>" : "") + "</span>");
     var best = lv.best || {};
     if (best.xph) chips.push("<span>Record <strong>" + fmtXph(best.xph) + " XP/h</strong></span>");
     if (best.goldh) chips.push("<span>Record <strong>" + fmtGoldShort(best.goldh) + " po/h</strong></span>");
@@ -1145,14 +1148,14 @@
       var race = lv.race ? fmtHours(lv.race) + (lv.race === bestRace ? ' <span class="leg-pill leg-ok">record</span>' : "") : "-";
       var rest = (lv.rest != null && lv.max && lv.lvl < lv.max) ? lv.rest + " %" : "-";
       return "<tr><td>" + name + "</td><td>" + (lv.lvl || "-") + "</td><td>" + (lv.play ? fmtHours(lv.play) : "-") + "</td><td>" + race +
-        "</td><td>" + rest + "</td><td>" + (lv.best && lv.best.xph ? fmtXph(lv.best.xph) : "-") + "</td><td>" + fmtNum(lv.dgn) + "</td><td>" + fmtNum(lv.delves) + "</td></tr>";
+        "</td><td>" + rest + "</td><td>" + (lv.best && lv.best.xph ? fmtXph(lv.best.xph) : "-") + "</td><td>" + fmtNum(lv.dgn) + "</td><td>" + fmtNum(lv.raids) + "</td><td>" + fmtNum(lv.delves) + "</td></tr>";
     }).join("");
     var head = '<div class="rep-summary lvl-summary"><span><strong>' + list.length + "</strong> personnages suivis</span>" +
       (bestRace ? "<span>Meilleure montee : <strong>" + fmtHours(bestRace) + "</strong></span>" : "") +
       (tonight ? "<span>A monter ce soir : <strong>" + esc((tonight.char && tonight.char.name) || tonight.id) + "</strong> (" + tonight.leveling.rest + " % de repos)</span>" : "") +
       "</div>";
     var table = '<div class="dash-table-wrap rep-table-wrap"><table class="dash-table rep-table"><thead><tr>' +
-      "<th>Personnage</th><th>Niv.</th><th>Temps suivi</th><th>Montee 10 > max</th><th>Repos</th><th>Record XP/h</th><th>Donjons</th><th>Gouffres</th>" +
+      "<th>Personnage</th><th>Niv.</th><th>Temps suivi</th><th>Montee 10 > max</th><th>Repos</th><th>Record XP/h</th><th>Donjons</th><th>Raids</th><th>Gouffres</th>" +
       "</tr></thead><tbody>" + rows + "</tbody></table></div>";
     return lvlWrap(head + table, "Repos : estimation au moment du dernier export (auberge : 5 % d'un niveau par tranche de 8 h, plafond 150 %).");
   }
