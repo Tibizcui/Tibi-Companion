@@ -1870,6 +1870,146 @@
       : "";
   }
 
+  // ==========================================================================
+  // CARTE « MA SEMAINE » A PARTAGER (2026-11-13, plan _dev/Plan_Partage_RetourJeu.md)
+  // Image 1200 x 630 dessinee dans le navigateur (canvas) a partir des memes
+  // chiffres que les cartes KPI, sur les 7 derniers jours des donnees. Rien
+  // n'est envoye : l'image se telecharge ou se copie (presse-papiers).
+  // Nom du personnage masque par defaut.
+  // ==========================================================================
+  var SHARE_W = 1200, SHARE_H = 630, SHARE_RED = "#C41F3B";
+  var SHARE_FONT = '"Inter Tight","Segoe UI",system-ui,Arial,sans-serif';
+
+  function shareRoundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y); ctx.closePath();
+  }
+
+  function shareCardData(profile) {
+    var win = computeWindow(profile.days, 7);
+    var t = sumDays(sliceDays(profile.days, win.from, win.to));
+    var net = t.goldGain - t.goldSpent;
+    var isAccount = profile.id === ALL_PROFILES_ID;
+    return {
+      win: win, isAccount: isAccount,
+      tiles: [
+        { label: "Temps joué", value: fmtHours(t.played), color: OVERLAY_COLORS.played },
+        { label: "Or net", value: (net >= 0 ? "+" : "") + fmtGoldShort(net) + " po", color: net >= 0 ? OVERLAY_COLORS.gold : "#ff8a8a" },
+        { label: "Quêtes", value: fmtNum(t.quests), color: OVERLAY_COLORS.quests },
+        { label: "Donjons et M+", value: fmtNum(t.dungeons + t.mplusCount), color: OVERLAY_COLORS.dungeons },
+        { label: "Gouffres", value: fmtNum(t.delves), color: OVERLAY_COLORS.delves },
+        { label: "Raids", value: fmtNum(t.raids), color: OVERLAY_COLORS.raids },
+      ],
+    };
+  }
+
+  function drawShareCard(canvas, profile, hideName) {
+    var d = shareCardData(profile);
+    canvas.width = SHARE_W; canvas.height = SHARE_H;
+    var ctx = canvas.getContext("2d");
+    var bg = ctx.createLinearGradient(0, 0, SHARE_W, SHARE_H);
+    bg.addColorStop(0, "#17141b"); bg.addColorStop(1, "#0d0b10");
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, SHARE_W, SHARE_H);
+    ctx.fillStyle = SHARE_RED; ctx.fillRect(0, 0, SHARE_W, 8);
+
+    ctx.textBaseline = "alphabetic";
+    ctx.fillStyle = "#f2eef5";
+    ctx.font = "700 52px " + SHARE_FONT;
+    ctx.fillText("Ma semaine dans World of Warcraft", 64, 112);
+
+    var who;
+    if (d.isAccount) who = "Mon compte, tous personnages";
+    else if (hideName) who = "Un aventurier d'Azeroth";
+    else who = (profile.char.name || "") + (profile.char.realm ? " - " + profile.char.realm : "");
+    var period = d.win.from != null
+      ? "Du " + fmtDateShort(epochDayToIso(d.win.from)) + " au " + fmtDateShort(epochDayToIso(d.win.to))
+      : "";
+    ctx.font = "600 28px " + SHARE_FONT;
+    ctx.fillStyle = (!d.isAccount && !hideName) ? classColor(profile.char.class) : "#c9c2d1";
+    ctx.fillText(who, 64, 162);
+    ctx.fillStyle = "#8f8899";
+    ctx.font = "500 24px " + SHARE_FONT;
+    ctx.fillText(period, 64, 200);
+
+    var cols = 3, gap = 24, x0 = 64, y0 = 240, tw = (SHARE_W - 2 * x0 - (cols - 1) * gap) / cols, th = 140;
+    d.tiles.forEach(function (tile, i) {
+      var x = x0 + (i % cols) * (tw + gap), y = y0 + Math.floor(i / cols) * (th + gap);
+      shareRoundRect(ctx, x, y, tw, th, 14);
+      ctx.fillStyle = "rgba(255,255,255,0.045)"; ctx.fill();
+      ctx.fillStyle = tile.color; ctx.fillRect(x + 14, y, tw - 28, 4);
+      ctx.fillStyle = "#a59fae"; ctx.font = "600 22px " + SHARE_FONT;
+      ctx.fillText(tile.label, x + 24, y + 48);
+      ctx.fillStyle = tile.color; ctx.font = "700 50px " + SHARE_FONT;
+      ctx.fillText(tile.value, x + 24, y + 110);
+    });
+
+    ctx.font = "800 30px " + SHARE_FONT;
+    ctx.fillStyle = SHARE_RED;
+    ctx.fillText("TibiSuite", 64, SHARE_H - 34);
+    var bw = ctx.measureText("TibiSuite").width;
+    ctx.font = "500 22px " + SHARE_FONT;
+    ctx.fillStyle = "#8f8899";
+    ctx.fillText("addons WoW gratuits, suivi de tes personnages  ·  tibiscui.fr", 64 + bw + 18, SHARE_H - 36);
+  }
+
+  function shareFileName() {
+    return "ma-semaine-wow-tibisuite.png";
+  }
+
+  function openShareCard(profile) {
+    if (!profile) return;
+    var dlg = document.getElementById("share-card-dlg");
+    if (!dlg) {
+      dlg = document.createElement("dialog");
+      dlg.id = "share-card-dlg";
+      dlg.setAttribute("aria-label", "Partager ma semaine");
+      dlg.style.cssText = "max-width:min(92vw,980px);width:100%;padding:20px;border:1px solid rgba(255,255,255,.12);border-radius:14px;background:#141118;color:#f2eef5";
+      dlg.innerHTML =
+        '<h2 style="margin:0 0 12px;font-size:1.25rem">Partager ma semaine</h2>' +
+        '<canvas id="share-card-canvas" style="width:100%;height:auto;border-radius:10px;display:block" aria-label="Aperçu de l\'image à partager"></canvas>' +
+        '<label style="display:flex;gap:8px;align-items:center;margin:12px 0"><input type="checkbox" id="share-card-hide" checked> Masquer le nom du personnage et le royaume</label>' +
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">' +
+          '<button type="button" class="btn" id="share-card-dl">Télécharger (PNG)</button>' +
+          '<button type="button" class="btn ghost" id="share-card-copy">Copier l\'image</button>' +
+          '<button type="button" class="btn ghost" id="share-card-close">Fermer</button>' +
+          '<span id="share-card-msg" role="status" style="color:#a59fae"></span>' +
+        "</div>" +
+        '<p style="margin:12px 0 0;color:#8f8899;font-size:.85rem">L\'image est créée dans ton navigateur : rien n\'est envoyé sur Internet. Colle-la sur Discord ou un réseau social.</p>';
+      document.body.appendChild(dlg);
+      dlg.querySelector("#share-card-close").addEventListener("click", function () { dlg.close(); });
+    }
+    var canvas = dlg.querySelector("#share-card-canvas");
+    var hide = dlg.querySelector("#share-card-hide");
+    var msg = dlg.querySelector("#share-card-msg");
+    var redraw = function () { drawShareCard(canvas, profile, hide.checked); msg.textContent = ""; };
+    hide.onchange = redraw;
+    var download = function () {
+      var a = document.createElement("a");
+      a.download = shareFileName();
+      a.href = canvas.toDataURL("image/png");
+      document.body.appendChild(a); a.click(); a.remove();
+    };
+    dlg.querySelector("#share-card-dl").onclick = function () { download(); msg.textContent = "Image téléchargée."; };
+    dlg.querySelector("#share-card-copy").onclick = function () {
+      if (!(navigator.clipboard && navigator.clipboard.write && window.ClipboardItem && canvas.toBlob)) {
+        download(); msg.textContent = "Copie impossible dans ce navigateur : image téléchargée à la place.";
+        return;
+      }
+      canvas.toBlob(function (blob) {
+        navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]).then(
+          function () { msg.textContent = "Image copiée : colle-la sur Discord (Ctrl + V)."; },
+          function () { download(); msg.textContent = "Copie refusée par le navigateur : image téléchargée à la place."; }
+        );
+      }, "image/png");
+    };
+    redraw();
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(redraw);
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+  }
+
   function renderKpis(profile, win) {
     var cur = sliceDays(profile.days, win.from, win.to);
     var prev = win.prevFrom != null ? sliceDays(profile.days, win.prevFrom, win.prevTo) : null;
@@ -3107,6 +3247,7 @@
         '<div class="bi-toolbar">' +
         (chips ? '<div class="bi-toolbar-row">' + chips + "</div>" : "") +
         '<div class="bi-toolbar-row bi-toolbar-row--between">' + rangeSelectorHtml(state.range) +
+        (state.compareMode ? "" : '<button type="button" class="btn ghost bi-share-btn" data-action="share-card">Partager ma semaine</button>') +
         (canCompare
           ? '<button type="button" class="btn ghost bi-compare-btn' + (state.compareMode ? " active" : "") + '" data-action="toggle-compare" aria-pressed="' + state.compareMode + '">' +
             (state.compareMode ? "Quitter la comparaison" : "Comparer 2 personnages") + "</button>"
@@ -3287,6 +3428,7 @@
       if (!el) return;
       var action = el.dataset.action;
       if (action === "range") { state.range = el.dataset.value; render(); }
+      else if (action === "share-card") { openShareCard(getActive()); }
       else if (action === "metric") { state.metric = el.dataset.value; render(); }
       else if (action === "granularity") { state.granularity = el.dataset.value; render(); }
       else if (action === "pvp-granularity") { state.pvpGranularity = el.dataset.value; render(); }
